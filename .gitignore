@@ -1,0 +1,8 @@
+.env
+data/submissions/
+data/drafts/
+data/published/
+data/token_log.jsonl
+logs/
+__pycache__/
+*.pyc

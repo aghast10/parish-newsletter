@@ -1,0 +1,59 @@
+# Parish Newsletter Configuration
+# --------------------------------
+
+parish:
+  name: "Parroquia Nuestra Señora del Perpetuo Socorro"
+  address: "Av. Fco. de Goya, 7 — Zaragoza"
+  phone: "+34 976 27 47 81"
+  email: "zaragozaperpetuosocorro@gmail.com"
+  website: "https://perpetuosocorro.com"
+  admin_email: "admin@example.com"
+  logo_url: "https://perpetuosocorro.com/wp-content/uploads/go-x/u/b32e3365-10bb-4a7f-aaed-bcdfaf04da21/image.png"
+
+schedule:
+  collection_start_day: 10   # Accept emails from this day of month
+  reminder_day: 20           # Remind missing groups
+  publish_day: 25            # Compose + send draft for review
+
+groups:
+  - id: catequesis-buen-pastor
+    name: "Catequesis del Buen Pastor"
+    secretary_email: "catequesis@example.com"
+    description: "Catequesis infantil según el método del Buen Pastor"
+  - id: confirmacion
+    name: "Confirmación"
+    secretary_email: "confirmacion@example.com"
+    description: "Preparación al sacramento de la Confirmación"
+  - id: jovenes-universitarios
+    name: "Jóvenes y Universitarios"
+    secretary_email: "jovenes@example.com"
+    description: "Grupo juvenil y universitario"
+  - id: grupos-vita
+    name: "Adultos: Grupos VITA"
+    secretary_email: "vita@example.com"
+    description: "Comunidades de vida adulta VITA"
+  - id: novios
+    name: "Novios: A Fuego Lento"
+    secretary_email: "novios@example.com"
+    description: "Preparación al matrimonio"
+  - id: matrimonios-vita
+    name: "Matrimonios en Comunidades VITA"
+    secretary_email: "matrimonios@example.com"
+    description: "Comunidades de matrimonios"
+  - id: mambre
+    name: "Mayores: Comunidad Mambré"
+    secretary_email: "mambre@example.com"
+    description: "Comunidad de mayores"
+  - id: formacion-biblica
+    name: "Escuela de Formación Bíblica"
+    secretary_email: "biblica@example.com"
+    description: "Estudio y profundización bíblica"
+  - id: actos-culturales
+    name: "Actos Culturales"
+    secretary_email: "cultura@example.com"
+    description: "Eventos culturales de la parroquia"
+
+mautic:
+  base_url: "https://mautic.parish.example"
+  auth_type: "basic"          # credentials in .env
+  segment_id: 1               # parish newsletter recipients
