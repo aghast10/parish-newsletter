@@ -206,5 +206,5 @@ Cada redacción es una llamada a la API. Con nueve grupos cuesta unos céntimos 
 [`docs/plantilla-secretarios.pdf`](docs/plantilla-secretarios.pdf) explica cómo y cuándo enviar, e incluye una plantilla para copiar en el correo y un ejemplo rellenado. Se genera con `docs/make_plantilla.py`; para poner en el PDF la dirección del buzón:
 
 ```bash
-python3 docs/make_plantilla.py --to boletin@perpetuosocorro.com
+python3 docs/make_plantilla.py --to boletin@example.com
 ```

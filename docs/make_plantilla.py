@@ -84,7 +84,7 @@ viernes. Somos ya unos 20, y este mes se han sumado
 tres chicas de primero de carrera que conocieron el
 grupo en la misa de jóvenes.
 
-El 13 de octubre vino el P. Javier a hablarnos de
+El 13 de octubre vino el párroco a hablarnos de
 vocación y sentido de la vida. Más que una charla fue
 una conversación: estuvimos casi dos horas y nadie
 tenía prisa por irse. Nos quedamos con una pregunta
@@ -100,13 +100,13 @@ todos los que colaborasteis.
   noviembre a las 20:00, salón parroquial.
 - Convivencia de Adviento, 28-30 de noviembre,
   Monasterio de Veruela. Inscripción antes del 20
-  en jovenes@perpetuosocorro.com.
+  en jovenes@example.com.
 
 3. AVISOS Y NECESIDADES
 Buscamos dos coches para el traslado a Veruela.
 
 4. CONTACTO DEL GRUPO (se publicará)
-Laura - jovenes@perpetuosocorro.com"""
+Marta - jovenes@example.com"""
 
 
 def header_footer(parish):
