@@ -54,48 +54,53 @@ TEMPLATE = """\
 Asunto: Boletín de [mes] - [nombre del grupo]
 
 1. LO QUE HEMOS HECHO ESTE MES
-[Dos o tres frases: qué se hizo, cuántos participaron,
-algo que destacar.]
+   (La parte más importante. Extiéndete todo lo que
+   quieras.)
+[Qué hicimos y cómo fue. Cuántos participamos y
+quiénes. Qué vivimos, qué aprendimos, qué nos
+llevamos. Alguna anécdota, una frase de alguien,
+algo que nos sorprendió o nos emocionó. Quién nos
+acompañó (sacerdote, ponente, otro grupo). Cuanto
+más cuentes, más vivo quedará el boletín.]
 
 2. PRÓXIMAS ACTIVIDADES
-(Repetir este bloque para cada actividad.)
-- Qué: [nombre de la actividad]
-- Cuándo: [día de la semana, día y mes, hora]
-- Dónde: [lugar]
-- Para quién: [niños, jóvenes, familias, todos...]
-- Inscripción o contacto: [cómo apuntarse, plazo]
+[Una línea por actividad: qué, cuándo, dónde y,
+si hace falta, cómo apuntarse.]
+- [Qué], [día y hora], [lugar]. [Inscripción]
 
 3. AVISOS Y NECESIDADES
-[Cambios de horario, se buscan voluntarios, material
-que hace falta... Si no hay nada, borrar este apartado.]
+[Cambios de horario, voluntarios, material...
+Si no hay nada, borra este apartado.]
 
 4. CONTACTO DEL GRUPO (se publicará)
-[Nombre de quien atiende, correo y/o teléfono.]
-
-5. ENLACES (opcional)
-[Formulario de inscripción, web del grupo...]"""
+[Nombre, correo y/o teléfono.]"""
 
 EXAMPLE = """\
 Asunto: Boletín de noviembre - Jóvenes y Universitarios
 
 1. LO QUE HEMOS HECHO ESTE MES
-Hemos vuelto a reunirnos los viernes, unos 20 jóvenes.
-El 13 de octubre el P. Javier nos habló de vocación y
-sentido de la vida.
+Después de los exámenes hemos vuelto a reunirnos los
+viernes. Somos ya unos 20, y este mes se han sumado
+tres chicas de primero de carrera que conocieron el
+grupo en la misa de jóvenes.
+
+El 13 de octubre vino el P. Javier a hablarnos de
+vocación y sentido de la vida. Más que una charla fue
+una conversación: estuvimos casi dos horas y nadie
+tenía prisa por irse. Nos quedamos con una pregunta
+suya: "¿Para quién eres tú?".
+
+También preparamos la vigilia del Domund. Hicimos
+los carteles, cantamos en la misa de 20:00 y
+recaudamos 340 euros para las misiones. Gracias a
+todos los que colaborasteis.
 
 2. PRÓXIMAS ACTIVIDADES
-- Qué: Cine-fórum con la película "El Gran Silencio"
-- Cuándo: viernes 14 de noviembre, 20:00
-- Dónde: salón parroquial
-- Para quién: jóvenes de 18 a 30 años
-- Inscripción o contacto: no hace falta apuntarse
-
-- Qué: Convivencia de Adviento en Veruela
-- Cuándo: del 28 al 30 de noviembre
-- Dónde: Monasterio de Veruela
-- Para quién: jóvenes y universitarios
-- Inscripción o contacto: antes del 20 de noviembre,
-  escribiendo a jovenes@perpetuosocorro.com
+- Cine-fórum "El Gran Silencio", viernes 14 de
+  noviembre a las 20:00, salón parroquial.
+- Convivencia de Adviento, 28-30 de noviembre,
+  Monasterio de Veruela. Inscripción antes del 20
+  en jovenes@perpetuosocorro.com.
 
 3. AVISOS Y NECESIDADES
 Buscamos dos coches para el traslado a Veruela.
@@ -202,10 +207,11 @@ def build(out, to, config):
         "pero no se leen.",
         "<b>Usa la plantilla de la página siguiente.</b> Cópiala en el correo y rellena los "
         "apartados. Borra los que no necesites.",
-        "<b>Fechas completas:</b> día de la semana, día, mes y hora "
-        "(<i>sábado 28 de marzo, de 10:00 a 12:00</i>). Evita «el sábado que viene».",
-        "<b>Lugar concreto</b> (<i>salón parroquial</i>, <i>capilla</i>, <i>Monasterio de "
-        "Veruela</i>) y cómo apuntarse, con plazo si lo hay.",
+        "<b>Lo más importante es contar lo que habéis vivido este mes.</b> Es lo que hace "
+        "comunidad: qué hicisteis, cómo fue, quiénes participasteis, qué os llevasteis, alguna "
+        "anécdota. Extiéndete todo lo que quieras; varios párrafos están muy bien.",
+        "<b>Las próximas actividades, en breve:</b> una línea cada una con qué, cuándo (día, "
+        "mes y hora; evita «el sábado que viene»), dónde y, si hace falta, cómo apuntarse.",
         "<b>No hace falta que quede bonito.</b> Con frases sencillas basta: la redacción final "
         "se armoniza con la del resto de grupos.",
         "<b>Solo información que se pueda publicar.</b> El boletín llega a toda la comunidad. "
