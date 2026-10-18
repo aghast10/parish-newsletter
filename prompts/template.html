@@ -64,7 +64,7 @@
     </td>
   </tr>
 
-  <!-- === REPEAT FOR EACH GROUP === -->
+  <!-- SECTION: repeated for each group by compose.py -->
 
   <!-- Section separator with emoji -->
   <tr>
@@ -92,15 +92,13 @@
         </tr>
       </table>
       <!-- Group content -->
-      <div style="padding-top:14px;">
-        <p style="margin:0;font-size:15px;line-height:1.7;color:#3a3a3a;">
-          {{GROUP_CONTENT}}
-        </p>
+      <div style="padding-top:14px;font-size:15px;line-height:1.7;color:#3a3a3a;">
+        {{GROUP_CONTENT}}
       </div>
     </td>
   </tr>
 
-  <!-- === END REPEAT === -->
+  <!-- /SECTION -->
 
   <!-- Separator before closing -->
   <tr>
@@ -158,8 +156,12 @@
             <p style="margin:0 0 10px;font-size:12px;">
               <a href="mailto:zaragozaperpetuosocorro@gmail.com" style="color:#b30c3c;text-decoration:none;">✉️ zaragozaperpetuosocorro@gmail.com</a>
             </p>
-            <p style="margin:0;">
+            <p style="margin:0 0 14px;">
               <a href="https://perpetuosocorro.com" style="color:#a39b5c;text-decoration:none;font-size:12px;font-family:'Montserrat',Arial,sans-serif;font-weight:600;">perpetuosocorro.com</a>
+            </p>
+            <!-- Brevo fills in {{ unsubscribe }} when sending -->
+            <p style="margin:0;font-size:11px;color:#666666;">
+              <a href="{{ unsubscribe }}" style="color:#888888;text-decoration:underline;">Darse de baja</a>
             </p>
           </td>
         </tr>

@@ -1,55 +1,35 @@
 #!/usr/bin/env python3
 """Show submission status: which groups have submitted and which haven't."""
 
-import os
 import sys
 from datetime import date
-from pathlib import Path
 
-import yaml
-
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-
-today = date.today()
-month_str = sys.argv[1] if len(sys.argv) > 1 else today.strftime("%Y-%m")
+from common import load_config, submission_status, today
 
 
-def load_config():
-    config_file = PROJECT_DIR / "config.yaml"
-    with config_file.open(encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
-
-def main():
-    config = load_config()
-    groups = config.get("groups", [])
-    submissions_dir = PROJECT_DIR / "data" / "submissions" / month_str
+def print_status(month_str):
+    """Print the status table and return how many groups have submitted."""
+    groups = load_config().get("groups", [])
+    status = submission_status(groups, month_str)
 
     print(f"\n  Boletín Parroquial — Estado de envíos ({month_str})")
     print("  " + "─" * 55)
     print(f"  {'Grupo':<25} {'Estado':<12} {'Palabras':>10}  {'Recibido'}")
     print("  " + "─" * 55)
 
-    submitted_count = 0
-
-    for group in groups:
-        group_file = submissions_dir / f"{group['id']}.md"
-        if group_file.exists():
-            content = group_file.read_text(encoding="utf-8")
-            word_count = len(content.split())
-            mod_time = date.fromtimestamp(group_file.stat().st_mtime).isoformat()
-            status = "✓ Sí"
-            print(f"  {group['name']:<25} {status:<12} {word_count:>10}  {mod_time}")
-            submitted_count += 1
+    for group, path in status:
+        if path:
+            word_count = len(path.read_text(encoding="utf-8").split())
+            mod_time = date.fromtimestamp(path.stat().st_mtime).isoformat()
+            print(f"  {group['name']:<25} {'✓ Sí':<12} {word_count:>10}  {mod_time}")
         else:
-            status = "✗ No"
-            print(f"  {group['name']:<25} {status:<12} {'—':>10}  —")
+            print(f"  {group['name']:<25} {'✗ No':<12} {'—':>10}  —")
 
+    submitted = sum(1 for _, path in status if path)
     print("  " + "─" * 55)
-    print(f"  Total: {submitted_count}/{len(groups)} grupos han enviado.\n")
-
-    return submitted_count
+    print(f"  Total: {submitted}/{len(groups)} grupos han enviado.\n")
+    return submitted
 
 
 if __name__ == "__main__":
-    main()
+    print_status(sys.argv[1] if len(sys.argv) > 1 else today.strftime("%Y-%m"))

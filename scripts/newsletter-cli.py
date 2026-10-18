@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Parish Newsletter CLI — manage groups, check status, and run pipeline."""
 
-import os
 import subprocess
-import sys
 from datetime import date
-from pathlib import Path
 
 import yaml
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+from common import PROJECT_DIR, load_config
+from status import print_status
+
 CONFIG_FILE = PROJECT_DIR / "config.yaml"
 
 # ── Colors ──────────────────────────────────────────────────────────
@@ -24,11 +23,6 @@ NC = "\033[0m"
 
 
 # ── Config helpers ──────────────────────────────────────────────────
-
-def load_config():
-    with CONFIG_FILE.open(encoding="utf-8") as f:
-        return yaml.safe_load(f)
-
 
 def save_config(config):
     with CONFIG_FILE.open("w", encoding="utf-8") as f:
@@ -52,29 +46,7 @@ def status_dot(active):
 # ── Screens ─────────────────────────────────────────────────────────
 
 def screen_status():
-    today = date.today()
-    month_str = today.strftime("%Y-%m")
-    config = load_config()
-    groups = config.get("groups", [])
-    submissions_dir = PROJECT_DIR / "data" / "submissions" / month_str
-
-    print()
-    print(f"  {BOLD}Submission Status — {month_str}{NC}")
-    print("  " + "─" * 55)
-
-    for group in groups:
-        group_file = submissions_dir / f"{group['id']}.md"
-        if group_file.exists():
-            content = group_file.read_text(encoding="utf-8")
-            words = len(content.split())
-            print(f"  {status_dot(True)} {group['name']:<25} {words:>5} words")
-        else:
-            print(f"  {status_dot(False)} {group['name']:<25} {DIM}not submitted{NC}")
-
-    submitted = sum(1 for g in groups if (submissions_dir / f"{g['id']}.md").exists())
-    print("  " + "─" * 55)
-    print(f"  {submitted}/{len(groups)} groups submitted")
-    print()
+    print_status(date.today().strftime("%Y-%m"))
     prompt("  [Enter] back ")
 
 
@@ -118,11 +90,13 @@ def add_group(config):
         print(f"  {RED}Invalid email.{NC}")
         return
 
+    emoji = prompt("  Emoji for the section header (optional): ")
     description = prompt("  Description (optional): ")
 
     group = {
         "id": group_id,
         "name": name,
+        "emoji": emoji or "✦",
         "secretary_email": email_addr,
         "description": description or "",
     }
@@ -163,7 +137,8 @@ def screen_run():
     print("  1) Collect emails")
     print("  2) Compose newsletter")
     print("  3) Send reminders")
-    print("  4) Full pipeline (collect → compose → review)")
+    print("  4) Upload draft to Brevo + test email")
+    print("  5) Full pipeline (collect → compose → Brevo draft)")
     print("  " + "─" * 40)
     choice = prompt()
 
@@ -171,25 +146,26 @@ def screen_run():
     if choice == "1":
         subprocess.run(["python3", str(script_dir / "collect_emails.py")])
     elif choice == "2":
-        subprocess.run(["bash", str(script_dir / "compose.sh")])
+        subprocess.run(["python3", str(script_dir / "compose.py")])
     elif choice == "3":
         subprocess.run(["python3", str(script_dir / "send_reminder.py")])
     elif choice == "4":
+        subprocess.run(["python3", str(script_dir / "publish_brevo.py")])
+    elif choice == "5":
         subprocess.run(["bash", str(script_dir / "run_monthly.sh")])
 
 
-def screen_mautic():
-    config = load_config()
-    mautic = config.get("mautic", {})
+def screen_brevo():
+    brevo = load_config().get("brevo", {})
+    not_set = DIM + "not set" + NC
 
     print()
-    print(f"  {BOLD}Mautic Configuration{NC}")
+    print(f"  {BOLD}Brevo Configuration{NC}")
     print("  " + "─" * 40)
-    print(f"  Base URL:    {mautic.get('base_url', DIM + 'not set' + NC)}")
-    print(f"  Auth type:   {mautic.get('auth_type', 'basic')}")
-    print(f"  Segment ID:  {mautic.get('segment_id', DIM + 'not set' + NC)}")
+    print(f"  List ID:     {brevo.get('list_id', not_set)}")
+    print(f"  Sender:      {brevo.get('sender_name', not_set)} <{brevo.get('sender_email', '')}>")
     print("  " + "─" * 40)
-    print(f"  {DIM}Edit config.yaml and .env to change Mautic settings.{NC}")
+    print(f"  {DIM}Edit config.yaml and .env (BREVO_API_KEY) to change Brevo settings.{NC}")
     print()
     prompt("  [Enter] back ")
 
@@ -202,7 +178,7 @@ def main_menu():
         print("  1) Submission status")
         print("  2) Groups")
         print("  3) Run pipeline")
-        print("  4) Mautic config")
+        print("  4) Brevo config")
         print("  ═════════════════════════════════")
         print(f"  {DIM}[q] quit{NC}")
         choice = prompt()
@@ -213,7 +189,7 @@ def main_menu():
         elif choice == "3":
             screen_run()
         elif choice == "4":
-            screen_mautic()
+            screen_brevo()
         elif choice in ("q", "Q", ""):
             break
         else:
