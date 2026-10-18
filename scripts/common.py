@@ -204,11 +204,17 @@ def extract_body(msg) -> str:
     return ""
 
 
-def _decode_filename(name):
+def header_text(value):
+    """Readable text of an encoded header ('=?utf-8?q?...?=' → text), on one line."""
     try:
-        return str(make_header(decode_header(name)))
+        text = str(make_header(decode_header(value or "")))
     except Exception:
-        return name
+        text = value or ""
+    return " ".join(text.split())
+
+
+def _decode_filename(name):
+    return header_text(name)
 
 
 def safe_filename(name):

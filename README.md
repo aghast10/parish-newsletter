@@ -28,7 +28,7 @@ flowchart TD
 
 1. **El secretario redacta.** Usa la [plantilla](docs/plantilla-secretarios.pdf): lo que se ha hecho este mes, las próximas actividades con fecha, hora y lugar, y los avisos. Lo escribe en el **cuerpo** del correo (los adjuntos se guardan, pero no se leen) y lo envía desde la dirección de su grupo que figura en `config.yaml`.
 2. **El correo llega al buzón del boletín**, una cuenta de Gmail dedicada.
-3. **Recogida** (`collect_emails.py`, cada día del 10 al 25). Busca los correos llegados desde la publicación anterior y los asigna a su grupo por la dirección del remitente. El texto se guarda en `data/submissions/AAAA-MM/<grupo>.md`; si un grupo envía varios correos, se añaden uno tras otro y el más reciente manda. Los adjuntos van a `attachments/<grupo>/`. El secretario recibe un acuse de recibo.
+3. **Recogida** (`collect_emails.py`, cada día del 10 al 25). Busca los correos llegados desde la publicación anterior y los asigna a su grupo por la dirección del remitente. El texto se guarda, junto con el asunto, en `data/submissions/AAAA-MM/<grupo>.md` (el asunto no sirve para identificar al grupo, pero el modelo lo lee por si trae alguna fecha o dato); si un grupo envía varios correos, se añaden uno tras otro y el más reciente manda. Los adjuntos van a `attachments/<grupo>/`. El secretario recibe un acuse de recibo.
    - Los remitentes desconocidos y las respuestas automáticas se ignoran.
    - Lo ya procesado se apunta en `data/submissions/processed.json`, así que da igual que alguien abra el buzón en Gmail y marque los correos como leídos.
    - El día 20, `send_reminder.py` escribe a los grupos que aún no han enviado nada.

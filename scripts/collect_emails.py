@@ -24,7 +24,7 @@ from email.mime.text import MIMEText
 
 from common import (
     EMAIL_ADDRESS, MONTH_NAMES, SUBMISSIONS_ROOT, extract_attachments, extract_body,
-    fetch_message, imap_connect, is_auto_reply, load_config, log, message_key,
+    fetch_message, header_text, imap_connect, is_auto_reply, load_config, log, message_key,
     require_email_credentials, safe_filename, sender_address, smtp_connect, today,
 )
 
@@ -126,12 +126,15 @@ def process_message(msg, email_to_group, submissions_dir, dry_run=False):
 
     group_file = submissions_dir / f"{group['id']}.md"
     msg_date = msg.get("Date", "")
+    # The subject can carry information (a date, an event name) that the body leaves out.
+    subject = header_text(msg.get("Subject"))
+    header = f"\n*[Asunto: {subject}]*" if subject else ""
     if not dry_run:
         if group_file.exists():
             with group_file.open("a", encoding="utf-8") as f:
-                f.write(f"\n\n---\n\n*[Actualización recibida: {msg_date}]*\n\n{content}")
+                f.write(f"\n\n---\n\n*[Actualización recibida: {msg_date}]*{header}\n\n{content}")
         else:
-            group_file.write_text(f"*[Recibido: {msg_date}]*\n\n{content}", encoding="utf-8")
+            group_file.write_text(f"*[Recibido: {msg_date}]*{header}\n\n{content}", encoding="utf-8")
     return "collected", group, {"attachments": [f[0] for f in files], "has_body": bool(body)}
 
 
