@@ -5,3 +5,4 @@ data/token_log.jsonl
 logs/
 __pycache__/
 *.pyc
+.venv/

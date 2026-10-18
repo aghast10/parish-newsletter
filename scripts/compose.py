@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Compose the parish newsletter: Claude writes the text, template.html sets the design.
+"""Compose the parish newsletter: an LLM writes the text, template.html sets the design.
 
 Usage: compose.py [--month YYYY-MM] [--notes "instrucciones del administrador"]
 
-Claude returns JSON (greeting, one section per group, closing) with light markup
+The model returns JSON (greeting, one section per group, closing) with light markup
 (blank-line paragraphs, **bold**, *italics*, "- " lists). This script escapes it, turns it into
 HTML and fills prompts/template.html, so the design never drifts and nothing from
 the submitted emails reaches the page as raw HTML.
@@ -12,19 +12,16 @@ the submitted emails reaches the page as raw HTML.
 import argparse
 import html
 import itertools
-import json
-import os
 import re
-import subprocess
 
 from common import (
     DRAFTS_DIR, PROJECT_DIR, fail, load_config, log, month_label, submission_status,
     today,
 )
+from llm import LLMError, complete_json
 from log_tokens import log_usage
 
 PROMPTS_DIR = PROJECT_DIR / "prompts"
-MODEL = "claude-sonnet-4-6"
 
 LINK_STYLE = "color:#b30c3c;text-decoration:none;"
 LINK_RE = re.compile(r"(https?://[^\s<>\"]+[^\s<>\".,;:!?)])|([\w.+-]+@[\w-]+(?:\.[\w-]+)+)")
@@ -94,7 +91,7 @@ def render(content, groups_by_id, month_name, year):
         for gid, group in groups_by_id.items() if gid in texts
     )
     if not sections:
-        fail("Claude returned no usable sections.")
+        fail("The model returned no usable sections.")
 
     return fill(head + sections + tail, {
         "MONTH": month_name.capitalize(),
@@ -104,59 +101,71 @@ def render(content, groups_by_id, month_name, year):
     })
 
 
-# ── Claude ──────────────────────────────────────────────────────────
+# ── LLM ─────────────────────────────────────────────────────────────
 
-def build_prompt(submitted, month_name, year, notes):
-    prompt = fill((PROMPTS_DIR / "compose.md").read_text(encoding="utf-8"),
+def content_schema(group_ids):
+    return {
+        "type": "object",
+        "properties": {
+            "greeting": {"type": "string"},
+            "sections": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "group_id": {"type": "string", "enum": group_ids},
+                        "text": {"type": "string"},
+                    },
+                    "required": ["group_id", "text"],
+                    "additionalProperties": False,
+                },
+            },
+            "closing": {"type": "string"},
+        },
+        "required": ["greeting", "sections", "closing"],
+        "additionalProperties": False,
+    }
+
+
+def build_prompts(submitted, month_name, year, notes):
+    """(system, user): instructions in the system prompt, the emails in the user turn."""
+    system = fill((PROMPTS_DIR / "compose.md").read_text(encoding="utf-8"),
                   {"MONTH": month_name, "YEAR": str(year)})
-    style = (PROMPTS_DIR / "style.md").read_text(encoding="utf-8")
-    reports = "\n".join(
+    system += "\n\n## Estilo\n" + (PROMPTS_DIR / "style.md").read_text(encoding="utf-8")
+    if notes:
+        system += f"\n\n## Correcciones del administrador\nAplica estas indicaciones:\n{notes}\n"
+
+    user = "## Informes de los grupos\n\n" + "\n".join(
         f"=== {g['name']} (id: {g['id']}) ===\n{path.read_text(encoding='utf-8')}\n"
         for g, path in submitted
     )
-    prompt += f"\n\n## Estilo\n{style}\n\n## Informes de los grupos\n{reports}"
-    if notes:
-        prompt += f"\n\n## Correcciones del administrador\nAplica estas indicaciones:\n{notes}\n"
-    return prompt
-
-
-def call_claude(prompt, month_str):
-    # Sin herramientas: los informes son correos de fuera y podrían llevar instrucciones
-    # para el modelo. `--allowedTools` no quita nada (~/.claude/settings.json permite
-    # Bash(*)); `--tools ""` sí. El contenido vuelve en la respuesta.
-    env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
-    proc = subprocess.run(
-        ["claude", "-p", "--model", MODEL, "--tools", "", "--output-format", "json"],
-        input=prompt, capture_output=True, text=True, cwd=PROJECT_DIR, env=env,
-    )
-    if proc.returncode != 0:
-        fail(f"claude failed ({proc.returncode}): {proc.stderr.strip()[:500]}")
-
-    data = json.loads(proc.stdout)
-    print(log_usage(data, month_str, "compose", "sonnet"))
-
-    result = (data.get("result") or "").strip()
-    start, end = result.find("{"), result.rfind("}")
-    try:
-        return json.loads(result[start:end + 1])
-    except (ValueError, json.JSONDecodeError):
-        fail(f"Could not parse JSON from Claude: {result[:300]}")
+    return system, user
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--month", default=today.strftime("%Y-%m"))
-    parser.add_argument("--notes", default="", help="corrections for Claude to apply")
+    parser.add_argument("--notes", default="", help="corrections for the model to apply")
     args = parser.parse_args()
 
     month_name, year = month_label(args.month)
-    groups = load_config().get("groups", [])
+    config = load_config()
+    groups = config.get("groups", [])
     submitted = [(g, p) for g, p in submission_status(groups, args.month) if p]
     if not submitted:
         fail(f"No submissions found for {args.month}. Nothing to compose.")
 
-    log(f"Composing newsletter for {args.month} with Claude ({len(submitted)} groups)...")
-    content = call_claude(build_prompt(submitted, month_name, year, args.notes), args.month)
+    llm_cfg = config.get("llm", {})
+    provider, model = llm_cfg.get("provider", "anthropic"), llm_cfg.get("model", "")
+    log(f"Composing newsletter for {args.month} with {provider}/{model} ({len(submitted)} groups)...")
+    system, user = build_prompts(submitted, month_name, year, args.notes)
+    try:
+        content, usage = complete_json(llm_cfg, system, user,
+                                       content_schema([g["id"] for g, _ in submitted]),
+                                       "newsletter_content")
+    except LLMError as e:
+        fail(str(e))
+    print(log_usage(usage, args.month, "compose", provider, model))
 
     html_out = render(content, {g["id"]: g for g, _ in submitted}, month_name, year)
     DRAFTS_DIR.mkdir(parents=True, exist_ok=True)

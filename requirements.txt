@@ -1,0 +1,4 @@
+anthropic>=1.15
+openai>=3.35
+pyyaml
+requests

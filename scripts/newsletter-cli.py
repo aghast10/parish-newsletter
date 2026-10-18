@@ -2,6 +2,7 @@
 """Parish Newsletter CLI — manage groups, check status, and run pipeline."""
 
 import subprocess
+import sys
 from datetime import date
 
 import yaml
@@ -144,13 +145,13 @@ def screen_run():
 
     script_dir = PROJECT_DIR / "scripts"
     if choice == "1":
-        subprocess.run(["python3", str(script_dir / "collect_emails.py")])
+        subprocess.run([sys.executable, str(script_dir / "collect_emails.py")])
     elif choice == "2":
-        subprocess.run(["python3", str(script_dir / "compose.py")])
+        subprocess.run([sys.executable, str(script_dir / "compose.py")])
     elif choice == "3":
-        subprocess.run(["python3", str(script_dir / "send_reminder.py")])
+        subprocess.run([sys.executable, str(script_dir / "send_reminder.py")])
     elif choice == "4":
-        subprocess.run(["python3", str(script_dir / "publish_brevo.py")])
+        subprocess.run([sys.executable, str(script_dir / "publish_brevo.py")])
     elif choice == "5":
         subprocess.run(["bash", str(script_dir / "run_monthly.sh")])
 

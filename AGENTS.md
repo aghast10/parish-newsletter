@@ -24,11 +24,12 @@ Automated monthly parish newsletter system. Group secretaries email their update
 
 ## Model
 
-`compose.py` calls `claude -p` with `--tools ""`: the submissions are outside text and may carry instructions. `compose.py` escapes everything the model returns before putting it in the template.
+`scripts/llm.py` makes one API call that returns JSON matching a schema, through the Anthropic or the OpenAI SDK, depending on the `llm` section of `config.yaml` (`provider`, `model`, `effort` for Anthropic, `base_url` for OpenAI-compatible services). The output is constrained with structured outputs (`output_config.format` / `response_format: json_schema`), and `group_id` is an enum of the groups that submitted. No tools are passed. The submissions go in the user turn and the instructions in the system prompt: they are outside text and may carry instructions. `compose.py` escapes everything the model returns before putting it in the template. Anthropic calls use `fallbacks: "default"` (beta `server-side-fallback-2026-07-01`), so a declined request is retried on a fallback model. Token usage goes to `data/token_log.jsonl`; the cost is computed only for the models in `log_tokens.PRICING`.
 
 ## Environment
 
-- `.env`: `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `ADMIN_EMAIL`, `BREVO_API_KEY`.
+- Python dependencies are in `requirements.txt`, installed in `.venv/` (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`). `run_monthly.sh` uses `.venv/bin/python` when it exists. Run the other scripts with `.venv/bin/python scripts/...`.
+- `.env`: `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `ADMIN_EMAIL`, `BREVO_API_KEY`, and `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 - Gmail is only used internally (IMAP to collect, SMTP for reminders and receipts).
 - Not scheduled on this machine. Intended cron schedule:
   - Days 10-25: `collect_emails.py` daily at 08:00

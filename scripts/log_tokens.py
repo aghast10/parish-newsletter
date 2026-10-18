@@ -1,4 +1,4 @@
-"""Log token usage of a `claude -p --output-format json` call to data/token_log.jsonl."""
+"""Log token usage of an LLM call to data/token_log.jsonl."""
 
 import json
 from datetime import datetime
@@ -7,50 +7,46 @@ from common import PROJECT_DIR
 
 TOKEN_LOG = PROJECT_DIR / "data" / "token_log.jsonl"
 
-# Fallback only: the CLI reports total_cost_usd itself.
+# USD per million tokens. Models not listed are logged without a cost.
 PRICING = {
-    "sonnet": {"input": 3.00,  "output": 15.00, "cache_read": 0.30, "cache_creation": 3.75},
-    "opus":   {"input": 15.00, "output": 75.00, "cache_read": 1.50, "cache_creation": 18.75},
-    "haiku":  {"input": 0.80,  "output": 4.00,  "cache_read": 0.08, "cache_creation": 1.00},
+    "claude-opus-5-5":   {"input": 4.00, "output": 20.00, "cache_read": 0.20, "cache_creation": 5.00},
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_read": 0.20, "cache_creation": 2.50},
+    "claude-haiku-5-5":  {"input": 0.10, "output": 0.50,  "cache_read": 0.01, "cache_creation": 0.125},
 }
 
 
-def log_usage(data, month, step, model="sonnet"):
-    """Append one entry for the parsed CLI JSON `data` and return a summary line."""
-    usage = data.get("usage", {})
-    input_tokens = usage.get("input_tokens", 0)
-    output_tokens = usage.get("output_tokens", 0)
-    cache_read = usage.get("cache_read_input_tokens", 0)
-    cache_creation = usage.get("cache_creation_input_tokens", 0)
-
-    prices = PRICING.get(model, PRICING["sonnet"])
-    cost_usd = data.get("total_cost_usd") or (
-        input_tokens * prices["input"]
-        + output_tokens * prices["output"]
-        + cache_read * prices["cache_read"]
-        + cache_creation * prices["cache_creation"]
-    ) / 1_000_000
+def log_usage(usage, month, step, provider, model):
+    """Append one entry for an llm.Usage and return a summary line."""
+    prices = PRICING.get(model)
+    cost_usd = None
+    if prices:
+        cost_usd = (
+            usage.input_tokens * prices["input"]
+            + usage.output_tokens * prices["output"]
+            + usage.cache_read_tokens * prices["cache_read"]
+            + usage.cache_creation_tokens * prices["cache_creation"]
+        ) / 1_000_000
 
     entry = {
         "month": month,
         "step": step,
+        "provider": provider,
         "model": model,
         "timestamp": datetime.now().isoformat(),
-        "input_tokens": input_tokens,
-        "output_tokens": output_tokens,
-        "cache_read_tokens": cache_read,
-        "cache_creation_tokens": cache_creation,
-        "total_tokens": input_tokens + output_tokens,
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "cache_read_tokens": usage.cache_read_tokens,
+        "cache_creation_tokens": usage.cache_creation_tokens,
         "cost_usd": cost_usd,
-        "duration_ms": data.get("duration_ms", 0),
-        "num_turns": data.get("num_turns", 0),
+        "duration_ms": usage.duration_ms,
     }
 
     TOKEN_LOG.parent.mkdir(parents=True, exist_ok=True)
     with TOKEN_LOG.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
 
+    cost = f"${cost_usd:.4f}" if cost_usd is not None else "cost unknown"
     return (
         f"[{month}] Tokens ({step}/{model}): "
-        f"{input_tokens:,} in + {output_tokens:,} out | ${cost_usd:.4f}"
+        f"{usage.input_tokens:,} in + {usage.output_tokens:,} out | {cost}"
     )

@@ -13,7 +13,7 @@ Mes: {{MONTH}} de {{YEAR}}
 
 ## Formato de salida
 
-Responde SOLO con un objeto JSON, sin explicaciones ni vallas de código:
+Responde con un objeto JSON con esta forma:
 
 ```
 {
