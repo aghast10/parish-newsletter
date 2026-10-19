@@ -2,8 +2,10 @@
 """Daily entry point for the scheduler: does whatever the newsletter needs today.
 
 The GitHub Actions workflow (.github/workflows/diario.yml) runs it twice a
-day. Each run looks at the date (`schedule` in config.yaml) and at what is
-already done this month:
+day; on the Windows fallback (windows/instalar.bat), a daily task and the
+Startup folder do (--wait gives the network time to come up at logon). Each
+run looks at the date (`schedule` in config.yaml) and at what is already done
+this month:
 
 - from collection_start_day to the day before publish_day: collect emails;
 - from reminder_day to the day before publish_day: send the reminder, once a
@@ -13,18 +15,39 @@ already done this month:
   (data/drafts/YYYY-MM-brevo.json). A failed run is retried on the next one.
 
 Running it several times a day is safe, and a missed run is caught up by the
-next one within the month.
+next one within the month. A lock (data/run_daily.lock) skips a run that
+starts while another is going on.
 """
 
+import argparse
 import json
+import os
 import sys
+import time
 import traceback
 from datetime import datetime
 
 from common import DRAFTS_DIR, PROJECT_DIR, load_config, today
-from run_monthly import echo, run_pipeline, run_step
+from run_monthly import echo, run_pipeline, run_step, setup_console
 
 STATE_FILE = PROJECT_DIR / "data" / "run_daily.json"
+LOCK_FILE = PROJECT_DIR / "data" / "run_daily.lock"
+STALE_LOCK_SECONDS = 3600
+
+
+def acquire_lock():
+    """False if another run holds the lock (one left by a crash expires in an hour)."""
+    LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if time.time() - LOCK_FILE.stat().st_mtime > STALE_LOCK_SECONDS:
+            LOCK_FILE.unlink()
+    except FileNotFoundError:
+        pass
+    try:
+        os.close(os.open(LOCK_FILE, os.O_CREAT | os.O_EXCL))
+        return True
+    except FileExistsError:
+        return False
 
 
 def load_state():
@@ -72,9 +95,20 @@ def main():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--wait", type=int, default=0, metavar="SECONDS",
+                        help="sleep this long before starting")
+    args = parser.parse_args()
+    setup_console()
+    time.sleep(args.wait)
+    if not acquire_lock():
+        echo(f"=== Daily run: {datetime.now():%Y-%m-%d %H:%M:%S}: another run is going on, skipping ===")
+        sys.exit(0)
     try:
         ok = main()
     except Exception:
         echo(traceback.format_exc())
         ok = False
+    finally:
+        LOCK_FILE.unlink(missing_ok=True)
     sys.exit(0 if ok else 1)

@@ -29,7 +29,8 @@ MONTH_NAMES = {
 def load_env():
     env_file = PROJECT_DIR / ".env"
     if env_file.exists():
-        for line in env_file.read_text(encoding="utf-8").splitlines():
+        # utf-8-sig: Windows Notepad may save .env with a BOM.
+        for line in env_file.read_text(encoding="utf-8-sig").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
                 key, val = line.split("=", 1)

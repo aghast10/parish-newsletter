@@ -4,7 +4,7 @@ Sistema que prepara cada mes el boletín parroquial a partir de lo que envían p
 
 Los secretarios escriben un correo con lo que ha hecho su grupo y lo que viene. Un script recoge esos correos, un modelo de IA redacta el texto con una sola voz y una plantilla fija le da el diseño de la parroquia. El resultado queda como borrador en **Brevo**: el administrador recibe una prueba, la revisa y pulsa *Enviar*. Ningún script manda nada a los feligreses por su cuenta.
 
-Funciona solo en **GitHub Actions**: no hace falta ningún ordenador encendido ni servidor propio.
+Funciona en **GitHub Actions**: no hace falta ningún ordenador encendido ni servidor propio. Si algún servicio no admitiera conexiones desde GitHub, hay una [alternativa con un ordenador Windows](#alternativa-un-ordenador-con-windows).
 
 > [!IMPORTANT]
 > **Este repositorio es público y contiene solo el código.** Para usarlo de verdad hay que hacer una **copia privada** y ponerla en marcha allí: el sistema guarda en el propio repositorio los correos de los secretarios, sus direcciones y los adjuntos, y eso no puede ser público. Ver [Puesta en producción](#puesta-en-producción). En este repositorio las tareas programadas no se ejecutan.
@@ -65,6 +65,10 @@ config.yaml              Datos de la parroquia, grupos, IA y Brevo
 .github/workflows/
   diario.yml             Cada día: run_daily.py y guardar el estado
   corregir.yml           A mano: redactar de nuevo con indicaciones y actualizar Brevo
+windows/                 Alternativa en un PC con Windows
+  instalar.bat           Entorno, claves y ejecución diaria
+  corregir.bat           Redactar de nuevo con indicaciones y actualizar Brevo
+  desinstalar.bat        Quitar la ejecución diaria
 prompts/
   compose.md             Instrucciones para el modelo (qué escribir y en qué formato)
   style.md               Tono y lenguaje
@@ -80,6 +84,7 @@ scripts/
   publish_brevo.py       Borrador en Brevo + correo de prueba
   run_monthly.py         Proceso del día 25: recoger → estado → redactar → Brevo
   run_daily.py           Lo que se ejecuta cada día: decide qué toca hoy
+  correct.py             Corrección: compose.py --notes + publish_brevo.py
   newsletter-cli.py      Menú interactivo: estado, grupos, ejecutar pasos
 data/                    Estado. Ignorado aquí; en la copia privada lo guarda GitHub Actions
   submissions/AAAA-MM/   Envíos de cada grupo y sus adjuntos
@@ -234,6 +239,35 @@ groups:
 Desde ese momento se recogen sus correos, recibe recordatorios y su sección aparece en el boletín con el mismo diseño, en el orden de la lista. Un grupo que no envía nada un mes simplemente no aparece. Para quitar una sección, borra el grupo.
 
 El diseño se cambia solo en `prompts/template.html`. El tono, en `prompts/style.md`.
+
+---
+
+## Alternativa: un ordenador con Windows
+
+Por si Brevo, Gmail u otro servicio no admitiera las conexiones desde GitHub. Hace lo mismo que GitHub Actions, pero en un PC de la parroquia: cada día a las 10:00 (o en cuanto se encienda, si estaba apagado) y al iniciar sesión, `run_daily.py` hace lo que toque según el día. No hace falta que el ordenador esté siempre encendido: lo pendiente se hace la siguiente vez.
+
+> [!WARNING]
+> **Solo uno de los dos a la vez.** Si GitHub y el PC recogen el mismo buzón, cada uno lleva su propio estado y los secretarios recibirían dos acuses de recibo. Antes de instalar en Windows, desactiva GitHub: en la copia privada, *Settings* → *Secrets and variables* → *Actions* → *Variables*, borra `BOLETIN_PRODUCCION`.
+
+### Pasar de GitHub a Windows
+
+1. Desactiva GitHub (aviso de arriba).
+2. Descarga la copia **privada** (*Code* → *Download ZIP*): lleva el estado (`data/`) que ha ido guardando GitHub, así que no se repite nada. Antes de descomprimir, clic derecho en el ZIP → *Propiedades* → marca **Desbloquear**; así Windows no pone pegas a los `.bat`. Descomprime en una carpeta fija, por ejemplo `Documentos\boletin`.
+3. Doble clic en **`windows\instalar.bat`**. Si no hay Python lo instala (y pide volver a abrirlo); después prepara el entorno y abre `.env` en el Bloc de notas para escribir las claves (las mismas que los *Secrets*: ver [Claves y activación](#5-claves-y-activación)). Al guardar y cerrar, crea la tarea diaria y un acceso directo en la carpeta de inicio.
+
+Si Windows avisa de que el archivo puede ser peligroso: *Más información* → *Ejecutar de todas formas*.
+
+### Uso
+
+- **Correcciones**: doble clic en `windows\corregir.bat`, escribir lo que hay que cambiar e Intro. Llega otra prueba.
+- **Ver quién ha enviado**: `data\submissions\AAAA-MM\` en la carpeta del boletín.
+- **Si algo falla**: `logs\AAAA-MM.log`.
+- **Grupos**: `config.yaml` en la carpeta del boletín.
+- **Quitarlo**: `windows\desinstalar.bat`.
+
+### Volver a GitHub
+
+Ejecuta `windows\desinstalar.bat`, sube a la copia privada la carpeta `data` del PC (en la web: *Add file* → *Upload files*, arrastrando la carpeta; o con `git add -f data logs`) y vuelve a crear la variable `BOLETIN_PRODUCCION`.
 
 ---
 

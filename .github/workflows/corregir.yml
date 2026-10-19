@@ -1,5 +1,5 @@
 # Re-compose the newsletter with the admin's notes and update the Brevo draft
-# (a new test email arrives). Launched by hand: Actions → «Corregir boletín»
+# (a new test email arrives) with scripts/correct.py. Launched by hand: Actions → «Corregir boletín»
 # → Run workflow. Same conditions as diario.yml.
 name: Corregir boletín
 
@@ -62,14 +62,9 @@ jobs:
           NOTAS: ${{ inputs.notas }}
           MES: ${{ inputs.mes }}
         run: |
-          args=()
+          args=(--notes "$NOTAS")
           if [ -n "$MES" ]; then args+=(--month "$MES"); fi
-          mkdir -p logs
-          log="logs/$(date +%Y-%m).log"
-          echo "=== Corrección: $(date '+%Y-%m-%d %H:%M:%S') ===" | tee -a "$log"
-          echo "Notas: $NOTAS" | tee -a "$log"
-          python scripts/compose.py "${args[@]}" --notes "$NOTAS" 2>&1 | tee -a "$log"
-          python scripts/publish_brevo.py "${args[@]}" 2>&1 | tee -a "$log"
+          python scripts/correct.py "${args[@]}"
 
       - name: Guardar el estado
         if: always() && steps.privado.outcome == 'success'
