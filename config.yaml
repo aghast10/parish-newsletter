@@ -73,3 +73,4 @@ brevo:
   list_id: 1                  # Brevo contact list with the newsletter recipients
   sender_name: "Parroquia Perpetuo Socorro"
   sender_email: "boletin@example.com"
+  upload_from: github         # github | windows: if Brevo refuses GitHub, a PC uploads the draft (windows/)

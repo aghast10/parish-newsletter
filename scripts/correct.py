@@ -3,15 +3,14 @@
 
 Usage: correct.py [--notes "…"] [--month YYYY-MM]
 
-Asks for the notes when --notes is not given (windows/corregir.bat). Runs
-compose.py --notes and publish_brevo.py, logging to logs/YYYY-MM.log. GitHub
-Actions does the same in .github/workflows/corregir.yml.
+Runs compose.py --notes and publish_brevo.py, logging to logs/YYYY-MM.log.
+.github/workflows/corregir.yml runs it; without --notes it asks for them.
 """
 
 import argparse
 import sys
 
-from run_monthly import echo, run_step, setup_console
+from run_monthly import echo, run_step
 
 
 def main():
@@ -19,7 +18,6 @@ def main():
     parser.add_argument("--notes")
     parser.add_argument("--month")
     args = parser.parse_args()
-    setup_console()
 
     notes = args.notes
     if notes is None:

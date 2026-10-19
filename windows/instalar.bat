@@ -1,6 +1,6 @@
 @echo off
-rem Windows fallback (README, "Alternativa: un ordenador con Windows"): creates
-rem .venv, opens .env to fill in the keys and registers the daily runs.
+rem Plan B for Brevo (README, "Plan B: subir a Brevo desde Windows"): creates .venv,
+rem asks for the keys in .env and schedules scripts\brevo_relay.py every hour.
 chcp 65001 >nul
 cd /d "%~dp0.."
 
@@ -31,7 +31,13 @@ if not exist .venv\Scripts\python.exe (
 echo Instalando las dependencias...
 .venv\Scripts\python -m pip install -q --disable-pip-version-check -r requirements.txt || goto error
 
-if not exist .env copy .env.example .env >nul
+if not exist .env (
+    > .env echo # Claves para subir a Brevo desde este ordenador. Ver el README.
+    >> .env echo GITHUB_REPO=usuario/repositorio-privado
+    >> .env echo GITHUB_TOKEN=
+    >> .env echo BREVO_API_KEY=
+    >> .env echo ADMIN_EMAIL=
+)
 echo.
 echo Se abre .env en el Bloc de notas: escribe las claves, guarda y cierra.
 start "" notepad .env
@@ -39,8 +45,10 @@ pause
 
 powershell -NoProfile -ExecutionPolicy Bypass -File windows\tarea.ps1 || goto error
 echo.
-echo Listo. Cada dia a las 10:00 y al iniciar sesion se hace lo que toque.
-echo Lo que haga queda en la carpeta logs.
+echo Primera comprobacion:
+.venv\Scripts\python scripts\brevo_relay.py
+echo.
+echo Listo. Cada hora, mientras el ordenador este encendido, sube a Brevo lo que GitHub no haya podido.
 pause
 exit /b 0
 

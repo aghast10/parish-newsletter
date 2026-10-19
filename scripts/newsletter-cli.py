@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Parish Newsletter CLI — manage groups, check status, and run pipeline."""
 
-import os
 import subprocess
 import sys
 from datetime import date
@@ -22,9 +21,6 @@ CYAN = "\033[0;36m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
 NC = "\033[0m"
-
-if os.name == "nt":
-    os.system("")  # turns on ANSI colors in the Windows console
 
 
 # ── Config helpers ──────────────────────────────────────────────────

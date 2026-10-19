@@ -3,7 +3,7 @@
 
 Runs each step with the project venv's interpreter (or this one, as in GitHub
 Actions) and stops at the first one that fails. Output goes to the screen and
-to logs/YYYY-MM.log. Also runs on Windows (windows/instalar.bat).
+to logs/YYYY-MM.log.
 """
 
 import os
@@ -26,27 +26,16 @@ STEPS = [
 
 def venv_python():
     """The project venv's python (see requirements.txt), else this interpreter."""
-    for rel in (".venv/bin/python", ".venv/Scripts/python.exe"):
-        path = PROJECT_DIR / rel
-        if path.exists():
-            return str(path)
-    return sys.executable
+    path = PROJECT_DIR / ".venv" / "bin" / "python"
+    return str(path) if path.exists() else sys.executable
 
 
 def echo(text):
-    """A line to logs/YYYY-MM.log and, when there is a console, to the screen."""
+    """A line to the screen and to logs/YYYY-MM.log."""
     LOG_DIR.mkdir(exist_ok=True)
     with (LOG_DIR / f"{date.today():%Y-%m}.log").open("a", encoding="utf-8") as f:
         f.write(text + "\n")
-    # Under pythonw (the Windows scheduled task) there is no console.
-    if sys.stdout is not None:
-        print(text, flush=True)
-
-
-def setup_console():
-    # A Windows console may not take every character the scripts print (✓, —).
-    if sys.stdout is not None:
-        sys.stdout.reconfigure(errors="replace")
+    print(text, flush=True)
 
 
 def run_step(title, script, *args):
@@ -58,8 +47,6 @@ def run_step(title, script, *args):
         cwd=PROJECT_DIR, env=env, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         encoding="utf-8", errors="replace",
-        # Windows: no console window for each step under pythonw.
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     for line in proc.stdout:
         echo(line.rstrip("\n"))
@@ -80,5 +67,4 @@ def run_pipeline():
 
 
 if __name__ == "__main__":
-    setup_console()
     sys.exit(0 if run_pipeline() else 1)

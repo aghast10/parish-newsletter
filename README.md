@@ -4,7 +4,7 @@ Sistema que prepara cada mes el boletín parroquial a partir de lo que envían p
 
 Los secretarios escriben un correo con lo que ha hecho su grupo y lo que viene. Un script recoge esos correos, un modelo de IA redacta el texto con una sola voz y una plantilla fija le da el diseño de la parroquia. El resultado queda como borrador en **Brevo**: el administrador recibe una prueba, la revisa y pulsa *Enviar*. Ningún script manda nada a los feligreses por su cuenta.
 
-Funciona en **GitHub Actions**: no hace falta ningún ordenador encendido ni servidor propio. Si algún servicio no admitiera conexiones desde GitHub, hay una [alternativa con un ordenador Windows](#alternativa-un-ordenador-con-windows).
+Funciona en **GitHub Actions**: no hace falta ningún ordenador encendido ni servidor propio. Si Brevo no admitiera las conexiones desde GitHub, hay un [plan B](#plan-b-subir-a-brevo-desde-windows): un PC con Windows sube a Brevo lo que GitHub ha preparado.
 
 > [!IMPORTANT]
 > **Este repositorio es público y contiene solo el código.** Para usarlo de verdad hay que hacer una **copia privada** y ponerla en marcha allí: el sistema guarda en el propio repositorio los correos de los secretarios, sus direcciones y los adjuntos, y eso no puede ser público. Ver [Puesta en producción](#puesta-en-producción). En este repositorio las tareas programadas no se ejecutan.
@@ -65,10 +65,10 @@ config.yaml              Datos de la parroquia, grupos, IA y Brevo
 .github/workflows/
   diario.yml             Cada día: run_daily.py y guardar el estado
   corregir.yml           A mano: redactar de nuevo con indicaciones y actualizar Brevo
-windows/                 Alternativa en un PC con Windows
-  instalar.bat           Entorno, claves y ejecución diaria
-  corregir.bat           Redactar de nuevo con indicaciones y actualizar Brevo
-  desinstalar.bat        Quitar la ejecución diaria
+windows/                 Plan B: un PC que sube a Brevo lo que GitHub no puede
+  instalar.bat           Entorno, claves y tarea cada hora
+  subir-ahora.bat        Subir ya, sin esperar a la tarea
+  desinstalar.bat        Quitar la tarea
 prompts/
   compose.md             Instrucciones para el modelo (qué escribir y en qué formato)
   style.md               Tono y lenguaje
@@ -85,6 +85,7 @@ scripts/
   run_monthly.py         Proceso del día 25: recoger → estado → redactar → Brevo
   run_daily.py           Lo que se ejecuta cada día: decide qué toca hoy
   correct.py             Corrección: compose.py --notes + publish_brevo.py
+  brevo_relay.py         Plan B: desde Windows, sube a Brevo los borradores pendientes
   newsletter-cli.py      Menú interactivo: estado, grupos, ejecutar pasos
 data/                    Estado. Ignorado aquí; en la copia privada lo guarda GitHub Actions
   submissions/AAAA-MM/   Envíos de cada grupo y sus adjuntos
@@ -142,7 +143,7 @@ El buzón del boletín necesita la verificación en dos pasos y una [contraseña
 2. **Lista de suscriptores.** En *Contactos* → *Listas*, crea la lista del boletín, importa los contactos (que hayan dado su consentimiento) y apunta su id en `brevo.list_id`.
 3. **Contacto de prueba.** Añade `ADMIN_EMAIL` como contacto de prueba. Si no, Brevo puede rechazar el envío de la prueba.
 4. **Clave de la API.** *SMTP y API* → *Claves API* → crear una.
-5. **IPs autorizadas.** Brevo puede bloquear la clave cuando se usa desde una IP desconocida, y las máquinas de GitHub cambian de IP en cada ejecución. Si la primera prueba falla con un error de Brevo que habla de la IP, desactiva el bloqueo de IPs en la configuración de seguridad de Brevo.
+5. **IPs autorizadas.** Brevo puede bloquear la clave cuando se usa desde una IP desconocida, y las máquinas de GitHub cambian de IP en cada ejecución. Si la prueba del día 25 falla con un error de Brevo que habla de la IP, desactiva el bloqueo de IPs en la configuración de seguridad de Brevo. Si no se puede, está el [plan B](#plan-b-subir-a-brevo-desde-windows).
 6. **Plan.** El plan gratuito permite 300 correos al día y añade la marca de Brevo en el pie.
 
 ### 4. `config.yaml`
@@ -160,7 +161,7 @@ Se puede editar en la web de GitHub (el lápiz al abrir el archivo):
     effort: medium             # solo Anthropic
     # base_url: https://...    # solo openai: cualquier API compatible (Mistral, Ollama…)
   ```
-- `brevo`: id de la lista de contactos y remitente.
+- `brevo`: id de la lista de contactos y remitente, y `upload_from` (`github`, o `windows` con el [plan B](#plan-b-subir-a-brevo-desde-windows)).
 
 ### 5. Claves y activación
 
@@ -203,7 +204,7 @@ El workflow **Diario** ejecuta `scripts/run_daily.py` dos veces al día (hacia l
 | Antes del 10 | Nada. |
 | Del 10 al 24 | Recoge los correos. |
 | Del 20 al 24 | Además, manda el recordatorio a los grupos que faltan, una sola vez al mes. |
-| Del 25 a fin de mes | Proceso mensual (`run_monthly.py`): recoger, redactar, borrador en Brevo y prueba al administrador. Una sola vez: cuando la campaña del mes ya existe en Brevo, no hace nada más. Si falla, lo reintenta en la siguiente ejecución. |
+| Del 25 a fin de mes | Proceso mensual (`run_monthly.py`): recoger, redactar, borrador en Brevo y prueba al administrador. Una sola vez: cuando el borrador del mes ya está en Brevo, no hace nada más. Si falla, lo reintenta en la siguiente ejecución; si lo que falla es solo la subida a Brevo, reintenta solo eso, sin redactar otra vez. |
 
 Ejecutarlo varias veces no repite nada, y si una ejecución se pierde la siguiente hace lo pendiente. Después de cada ejecución guarda `data/` y `logs/` con un commit («Estado: …»), también cuando algo ha fallado, para no recoger dos veces lo mismo.
 
@@ -242,32 +243,31 @@ El diseño se cambia solo en `prompts/template.html`. El tono, en `prompts/style
 
 ---
 
-## Alternativa: un ordenador con Windows
+## Plan B: subir a Brevo desde Windows
 
-Por si Brevo, Gmail u otro servicio no admitiera las conexiones desde GitHub. Hace lo mismo que GitHub Actions, pero en un PC de la parroquia: cada día a las 10:00 (o en cuanto se encienda, si estaba apagado) y al iniciar sesión, `run_daily.py` hace lo que toque según el día. No hace falta que el ordenador esté siempre encendido: lo pendiente se hace la siguiente vez.
+Si Brevo no admite las conexiones desde GitHub (y no se puede desactivar su bloqueo de IPs), un PC de la parroquia hace solo esa parte. GitHub sigue recogiendo los correos y redactando el boletín; el PC, cada hora mientras está encendido, mira en la copia privada si hay un borrador que aún no está en Brevo, lo sube, manda la prueba al administrador y anota en la copia privada que ya está subido. No hace falta que esté siempre encendido: lo sube la próxima vez que se encienda. Tampoco guarda nada: todo sigue en GitHub.
 
-> [!WARNING]
-> **Solo uno de los dos a la vez.** Si GitHub y el PC recogen el mismo buzón, cada uno lleva su propio estado y los secretarios recibirían dos acuses de recibo. Antes de instalar en Windows, desactiva GitHub: en la copia privada, *Settings* → *Secrets and variables* → *Actions* → *Variables*, borra `BOLETIN_PRODUCCION`.
+### Instalarlo
 
-### Pasar de GitHub a Windows
+1. **En la copia privada**, en `config.yaml`, pon `upload_from: windows` en la sección `brevo`. Así GitHub ni lo intenta y no llegan avisos de fallos. (Sin cambiarlo también funciona: el PC sube lo que GitHub no haya podido.)
+2. **Un token de GitHub** para que el PC lea la copia privada y anote lo subido. Con la cuenta de la parroquia: *Settings* → *Developer settings* → *Personal access tokens* → *Fine-grained tokens* → *Generate new token*. En *Repository access*, **solo la copia privada**; en *Permissions* → *Contents*, **Read and write**. Pon la caducidad más larga que permita y apunta cuándo hay que renovarlo.
+3. **En el PC**: descarga este repositorio (*Code* → *Download ZIP*); basta el público, porque el PC no guarda datos. Antes de descomprimir, clic derecho en el ZIP → *Propiedades* → marca **Desbloquear**, para que Windows no ponga pegas a los `.bat`. Descomprime en una carpeta fija, por ejemplo `Documentos\boletin`.
+4. Doble clic en **`windows\instalar.bat`**. Si no hay Python lo instala (y pide volver a abrirlo); después prepara el entorno y abre `.env` en el Bloc de notas para escribir:
 
-1. Desactiva GitHub (aviso de arriba).
-2. Descarga la copia **privada** (*Code* → *Download ZIP*): lleva el estado (`data/`) que ha ido guardando GitHub, así que no se repite nada. Antes de descomprimir, clic derecho en el ZIP → *Propiedades* → marca **Desbloquear**; así Windows no pone pegas a los `.bat`. Descomprime en una carpeta fija, por ejemplo `Documentos\boletin`.
-3. Doble clic en **`windows\instalar.bat`**. Si no hay Python lo instala (y pide volver a abrirlo); después prepara el entorno y abre `.env` en el Bloc de notas para escribir las claves (las mismas que los *Secrets*: ver [Claves y activación](#5-claves-y-activación)). Al guardar y cerrar, crea la tarea diaria y un acceso directo en la carpeta de inicio.
+   | Clave | Qué es |
+   |---|---|
+   | `GITHUB_REPO` | La copia privada, como `usuario/boletin-parroquia`. |
+   | `GITHUB_TOKEN` | El token del paso 2. |
+   | `BREVO_API_KEY` | La clave de la API de Brevo. |
+   | `ADMIN_EMAIL` | Quien recibe la prueba. |
+
+   Al guardar y cerrar el Bloc de notas, programa la tarea y hace una primera comprobación.
 
 Si Windows avisa de que el archivo puede ser peligroso: *Más información* → *Ejecutar de todas formas*.
 
 ### Uso
 
-- **Correcciones**: doble clic en `windows\corregir.bat`, escribir lo que hay que cambiar e Intro. Llega otra prueba.
-- **Ver quién ha enviado**: `data\submissions\AAAA-MM\` en la carpeta del boletín.
-- **Si algo falla**: `logs\AAAA-MM.log`.
-- **Grupos**: `config.yaml` en la carpeta del boletín.
-- **Quitarlo**: `windows\desinstalar.bat`.
-
-### Volver a GitHub
-
-Ejecuta `windows\desinstalar.bat`, sube a la copia privada la carpeta `data` del PC (en la web: *Add file* → *Upload files*, arrastrando la carpeta; o con `git add -f data logs`) y vuelve a crear la variable `BOLETIN_PRODUCCION`.
+Nada cambia para el administrador: la prueba llega igual, y las correcciones se piden igual en GitHub (*Corregir boletín*). Después de una corrección, el PC sube el nuevo borrador en menos de una hora; para no esperar, doble clic en **`windows\subir-ahora.bat`**. Lo que hace el PC queda en `logs\brevo-relay.log`. Para quitarlo: `windows\desinstalar.bat`.
 
 ---
 
