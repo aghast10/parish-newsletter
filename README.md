@@ -1,6 +1,6 @@
 # Boletín parroquial
 
-Sistema que prepara cada mes el boletín de la Parroquia Nuestra Señora del Perpetuo Socorro (Zaragoza) a partir de lo que envían por correo los secretarios de los grupos.
+Sistema que prepara cada mes el boletín parroquial a partir de lo que envían por correo los secretarios de los grupos.
 
 Los secretarios escriben un correo con lo que ha hecho su grupo y lo que viene. Un script recoge esos correos, un modelo de IA redacta el texto con una sola voz y una plantilla fija le da el diseño de la parroquia. El resultado queda como borrador en **Brevo**: el administrador recibe una prueba, la revisa y pulsa *Enviar*. Ningún script manda nada a los feligreses por su cuenta.
 
