@@ -76,6 +76,7 @@ scripts/
   publish_brevo.py       Borrador en Brevo + correo de prueba
   run_monthly.py         Proceso del día 25: recoger → estado → redactar → Brevo
   run_daily.py           Lo que lanza el Programador de tareas: decide qué toca hoy
+  install.py             Instalación guiada (la lanza instalar.bat)
   install_windows_task.ps1   Crea la tarea programada en Windows
   newsletter-cli.py      Menú interactivo: estado, grupos, ejecutar pasos
 data/                    (no se sube a git)
@@ -104,6 +105,21 @@ Los correos que llegan son texto de fuera y podrían traer instrucciones dirigid
 
 Requisitos: Python 3.11 o posterior. En producción funciona en **Windows**; también en Linux o macOS.
 
+### Instalación guiada
+
+En Windows, doble clic en **`instalar.bat`** (en Linux o macOS: `python3 scripts/install.py`). Si no hay Python, lo instala con `winget` y pide volver a abrirlo. Después pregunta, por orden:
+
+1. **Gmail**: la dirección del buzón y su [contraseña de aplicación](https://myaccount.google.com/apppasswords); el correo del administrador.
+2. **IA**: Claude u OpenAI, el modelo y la clave de la API.
+3. **Brevo**: la clave de la API; con ella lee las listas de contactos y los remitentes verificados para elegirlos de una lista.
+4. **Calendario**: días de recogida, recordatorio y borrador; a qué hora se ejecuta, si se repite cada pocas horas y si también al encender el ordenador.
+
+Comprueba cada clave al momento (si Gmail, Brevo o la IA la rechazan, deja volver a escribirla), guarda las claves en `.env` y lo demás en `config.yaml`, crea el entorno `.venv` con las dependencias, crea la [tarea programada](#programarlo-en-windows) y, si se quiere, genera la guía en PDF para los secretarios con la dirección del buzón. Se puede volver a ejecutar para cambiar algo: Intro deja cada valor como está.
+
+Lo único que no pregunta son los grupos y las direcciones de sus secretarios: se ponen en `config.yaml` o con `scripts\newsletter-cli.py` (ver [Grupos y secciones](#grupos-y-secciones)).
+
+### Instalación a mano
+
 En Windows, con Python instalado desde [python.org](https://www.python.org/downloads/windows/), desde la carpeta del proyecto en PowerShell:
 
 ```powershell
@@ -126,7 +142,7 @@ En Linux o macOS: `python3 -m venv .venv`, `.venv/bin/pip install -r requirement
 ### `config.yaml`
 
 - `parish`: datos de la parroquia.
-- `schedule`: días de recogida, recordatorio y publicación.
+- `schedule`: días de recogida, recordatorio y publicación, y la hora y frecuencia de la tarea programada (si se cambian a mano, hay que volver a crear la tarea).
 - `groups`: un elemento por sección del boletín (ver abajo).
 - `llm`: proveedor y modelo de IA.
   ```yaml
@@ -202,10 +218,10 @@ El ordenador de la parroquia se apaga cada día, así que no se puede contar con
 
 Así, aunque el ordenador no se encienda el día 20 o el 25, lo hace el primer día que se encienda después. Se puede lanzar varias veces al día sin problema: lo ya recogido no se repite. Lo único que no recupera es un mes en que el ordenador no se encienda ningún día entre el 25 y el final: entonces hay que hacerlo a mano con `compose.py --month AAAA-MM` y `publish_brevo.py --month AAAA-MM`.
 
-Para crear la tarea, una vez instalado el entorno (`.venv`), desde la carpeta del proyecto en PowerShell:
+La tarea la crea la instalación guiada, con la hora y la frecuencia que se le digan. Para crearla a mano, una vez instalado el entorno (`.venv`), desde la carpeta del proyecto en PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_windows_task.ps1
+powershell -ExecutionPolicy Bypass -File scripts\install_windows_task.ps1 -At 10:00 [-EveryHours 4] [-NoLogon]
 ```
 
 Aparece en el *Programador de tareas* como **Boletin parroquial**; desde ahí se puede ejecutar a mano para probarla. Corre con el usuario que la crea y solo mientras esa sesión está iniciada, sin abrir ninguna ventana. Lo que hace queda en `logs\AAAA-MM.log`. Para quitarla: `Unregister-ScheduledTask -TaskName "Boletin parroquial"`.

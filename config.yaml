@@ -13,6 +13,10 @@ schedule:
   collection_start_day: 10   # Accept emails from this day of month
   reminder_day: 20           # Remind missing groups
   publish_day: 25            # Compose + send draft for review
+  # Scheduled task (scripts/install.py reads these and registers it again)
+  run_time: "10:00"          # Daily run of scripts/run_daily.py
+  run_every_hours: 0         # Repeat every N hours while the computer is on (0: once a day)
+  run_at_logon: true         # Also run at logon, for a computer that is switched off daily
 
 groups:
   - id: catequesis-buen-pastor
