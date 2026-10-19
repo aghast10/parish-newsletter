@@ -1,14 +1,16 @@
 # Parish Newsletter
 
-Automated monthly parish newsletter system. Group secretaries email their updates to a dedicated Gmail account. An LLM writes the text, a fixed HTML template sets the design. Distribution via Brevo.
+Automated monthly parish newsletter system. Group secretaries email their updates to a dedicated Gmail account. An LLM writes the text, a fixed HTML template sets the design. Distribution via Brevo. Runs on GitHub Actions.
+
+This repository is public and holds only the code. Production is a private copy (a clone pushed to a new private repo, not a fork), where the workflows commit the state (`data/`, `logs/`), which includes the secretaries' emails and addresses. Never commit `data/` or `logs/` here; they are gitignored and the workflows add them with `git add -f`.
 
 ## Architecture
 
 - **Monthly pipeline** (`scripts/run_monthly.py`): collect emails → check status → compose → Brevo draft campaign + test email to the admin.
 - **Approval happens in Brevo**: the admin reviews the test email and sends the campaign from Brevo. No script sends to subscribers.
-- **Corrections**: `scripts/compose.py --notes "…"` re-composes with the admin's instructions; `scripts/publish_brevo.py` then updates the same draft campaign and sends a new test.
-- **Scheduling** (`scripts/run_daily.py`): the single scheduled entry point. Production is a Windows PC that is switched off every day, so it runs at logon and daily, and decides from the date (`schedule` in `config.yaml`) and the month's state what to do: collect on days 10–24, the reminder once from day 20 (recorded in `data/run_daily.json`), and from day 25 the monthly pipeline until `data/drafts/YYYY-MM-brevo.json` exists. Safe to run several times a day. `scripts/install_windows_task.ps1` registers the Task Scheduler task (keep that file ASCII: Windows PowerShell 5.1 misreads BOM-less UTF-8).
-- **Installer** (`instalar.bat` → `scripts/install.py`): interactive, in Spanish, standard library only (it runs before the venv exists). Asks for and checks the Gmail, LLM and Brevo keys (Brevo lists and verified senders are offered as choices), the admin address and the schedule; writes `.env` and `config.yaml` (edited line by line to keep the comments; `schedule.run_time`, `run_every_hours` and `run_at_logon` are only read by the installer), creates `.venv`, registers the task (PowerShell script on Windows, a marked crontab entry elsewhere) and can regenerate the secretaries' PDF. Re-running it offers the current values. When `.env` or `config.yaml` gain a setting the admin must choose, add the question here.
+- **Corrections**: `scripts/compose.py --notes "…"` re-composes with the admin's instructions; `scripts/publish_brevo.py` then updates the same draft campaign and sends a new test. In production both run from the `corregir.yml` workflow.
+- **Scheduling** (`scripts/run_daily.py`): the single scheduled entry point. It decides from the date (`schedule` in `config.yaml`) and the month's state what to do: collect on days 10–24, the reminder once from day 20 (recorded in `data/run_daily.json`), and from day 25 the monthly pipeline until `data/drafts/YYYY-MM-brevo.json` exists. Safe to run several times a day; a missed run is caught up by the next.
+- **GitHub Actions** (`.github/workflows/`): `diario.yml` runs `run_daily.py` twice a day (and on demand); `corregir.yml` is the corrections step, launched by hand with `notas` and `mes` inputs. Both run only when the repository variable `BOLETIN_PRODUCCION` is `true`, fail if the repository is public, run with `TZ=Europe/Madrid`, share a concurrency group (they both write `data/`), take the keys from repository secrets (the scripts read them from the environment; no `.env`), and commit `data/` and `logs/` afterwards, also after a failure.
 - **Reminders** (`scripts/send_reminder.py`): emails secretaries who haven't submitted.
 - **Collection** (`scripts/collect_emails.py`): searches INBOX since the previous month's publish day and fetches with `BODY.PEEK[]`. The state is `data/submissions/processed.json` (Message-IDs already handled), not Gmail's read flag, so reading the inbox in Gmail loses nothing and re-running duplicates nothing. To re-collect a message, delete its entry there. Unknown senders are logged and not recorded (adding the address to `config.yaml` picks them up next run); auto-replies and empty emails are recorded and skipped. HTML-only emails are converted to text. Attachments are saved to `data/submissions/YYYY-MM/attachments/{group_id}/` and listed in the group's `.md` with a note to review them by hand (their content is not read). Each collected email gets a receipt to the secretary in Spanish (`--no-receipt` to skip, `--dry-run` writes and sends nothing).
 
@@ -22,7 +24,7 @@ Automated monthly parish newsletter system. Group secretaries email their update
 - `data/submissions/YYYY-MM/` — group markdown files collected from email, plus `attachments/`.
 - `data/submissions/processed.json` — Message-IDs `collect_emails.py` has already handled.
 - `data/drafts/` — `YYYY-MM-draft.html` and `YYYY-MM-brevo.json` (id of the month's Brevo campaign).
-- `README.md` — human documentation in Spanish (setup, Brevo, monthly use, Windows scheduling). Keep it in sync when the flow changes.
+- `README.md` — human documentation in Spanish (production setup on a private copy, Brevo, monthly use, local development). Keep it in sync when the flow changes.
 - `docs/plantilla-secretarios.pdf` — guide and email template for secretaries, generated by `docs/make_plantilla.py` (system `python3`, reportlab; `--to` prints the inbox address). Regenerate it if the schedule or the submission format changes.
 - `logs/` — monthly run logs. `data/token_log.jsonl` — token usage per compose.
 
@@ -32,8 +34,8 @@ Automated monthly parish newsletter system. Group secretaries email their update
 
 ## Environment
 
-- Production runs on Windows; the code must also keep working on Linux/macOS. No shell scripts: everything is Python (or the PowerShell installer). Read and write text files with `encoding="utf-8"`. Scripts run by `run_monthly.py`/`run_daily.py` get `PYTHONIOENCODING=utf-8`, and their output goes to `logs/YYYY-MM.log`; under `pythonw` there is no console.
-- Python dependencies are in `requirements.txt`, installed in `.venv/` (Windows: `py -m venv .venv && .venv\Scripts\pip install -r requirements.txt`; Linux: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`). `run_monthly.py` runs its steps with the venv's python when it exists. Run the other scripts with `.venv\Scripts\python scripts\...` (or `.venv/bin/python`).
-- `.env`: `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `ADMIN_EMAIL`, `BREVO_API_KEY`, and `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
+- Python 3.11+. Dependencies are in `requirements.txt`. In Actions they are installed into the runner's Python; locally into `.venv/` (`python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`), which `run_monthly.py` uses for its steps when it exists. Run the other scripts with `.venv/bin/python scripts/...`.
+- Keys: `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD`, `ADMIN_EMAIL`, `BREVO_API_KEY`, and `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. Repository secrets in production, `.env` locally (environment variables win over `.env`).
 - Gmail is only used internally (IMAP to collect, SMTP for reminders and receipts).
-- Scheduled with Windows Task Scheduler (`install_windows_task.ps1`, run by the installer): `run_daily.py` daily at `schedule.run_time` (default 10:00), optionally every N hours, and at logon (5 min delay). On an always-on Linux machine, one daily cron line running `run_daily.py` does the same.
+- Running locally against the production inbox re-collects messages and re-sends receipts, because the state lives in the private copy: use `--dry-run` or a test inbox.
+- Scripts run by `run_monthly.py`/`run_daily.py` get `PYTHONIOENCODING=utf-8`, and their output goes to `logs/YYYY-MM.log` as well as the console. Read and write text files with `encoding="utf-8"`.

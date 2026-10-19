@@ -4,6 +4,11 @@ Sistema que prepara cada mes el boletín parroquial a partir de lo que envían p
 
 Los secretarios escriben un correo con lo que ha hecho su grupo y lo que viene. Un script recoge esos correos, un modelo de IA redacta el texto con una sola voz y una plantilla fija le da el diseño de la parroquia. El resultado queda como borrador en **Brevo**: el administrador recibe una prueba, la revisa y pulsa *Enviar*. Ningún script manda nada a los feligreses por su cuenta.
 
+Funciona solo en **GitHub Actions**: no hace falta ningún ordenador encendido ni servidor propio.
+
+> [!IMPORTANT]
+> **Este repositorio es público y contiene solo el código.** Para usarlo de verdad hay que hacer una **copia privada** y ponerla en marcha allí: el sistema guarda en el propio repositorio los correos de los secretarios, sus direcciones y los adjuntos, y eso no puede ser público. Ver [Puesta en producción](#puesta-en-producción). En este repositorio las tareas programadas no se ejecutan.
+
 > Documentación técnica para agentes de IA: [`AGENTS.md`](AGENTS.md). Guía para los secretarios: [`docs/plantilla-secretarios.pdf`](docs/plantilla-secretarios.pdf).
 
 ---
@@ -21,7 +26,7 @@ flowchart TD
     E --> F["data/drafts/AAAA-MM-draft.html"]
     F --> G["5 · publish_brevo.py<br/>campaña en borrador"]
     G -->|correo de prueba| H["6 · Administrador<br/>revisa"]
-    H -->|"correcciones:<br/>compose.py --notes"| E
+    H -->|"correcciones:<br/>Corregir boletín"| E
     H -->|"pulsa Enviar en Brevo"| I["7 · Brevo<br/>envía a la lista"]
     I --> J["Lector final"]
 ```
@@ -34,12 +39,7 @@ flowchart TD
    - El día 20, `send_reminder.py` escribe a los grupos que aún no han enviado nada.
 4. **Redacción** (`compose.py`, día 25). Junta los envíos del mes y hace **una sola llamada** al modelo de IA (Anthropic u OpenAI), que devuelve el texto en JSON: saludo, una sección por grupo y cierre. El script escapa ese texto, aplica el formato básico (párrafos, negritas, listas, enlaces) y lo mete en `prompts/template.html`. El resultado es `data/drafts/AAAA-MM-draft.html`.
 5. **Borrador en Brevo** (`publish_brevo.py`). Crea la campaña del mes como borrador en Brevo, o la actualiza si ya existe, y manda un correo de prueba al administrador.
-6. **Revisión.** El administrador lee la prueba tal como la verá el lector. Si hay que cambiar algo:
-   ```
-   .venv\Scripts\python scripts\compose.py --notes "Quita la fecha del retiro, aún no está confirmada"
-   .venv\Scripts\python scripts\publish_brevo.py
-   ```
-   Se vuelve a redactar con esas indicaciones, se actualiza la misma campaña y llega otra prueba. Los retoques pequeños también se pueden hacer directamente en el editor de Brevo.
+6. **Revisión.** El administrador lee la prueba tal como la verá el lector. Si hay que cambiar algo, en GitHub (también desde la app del móvil): *Actions* → **Corregir boletín** → *Run workflow*, y escribe lo que hay que cambiar, por ejemplo «Quita la fecha del retiro, aún no está confirmada». Se vuelve a redactar con esas indicaciones, se actualiza la misma campaña y llega otra prueba. Los retoques pequeños también se pueden hacer directamente en el editor de Brevo.
 7. **Envío.** En Brevo → *Campañas* → el borrador del mes → *Enviar*. Brevo lo manda a la lista de suscriptores y gestiona las bajas: el pie del boletín lleva el enlace *Darse de baja*.
 
 ---
@@ -52,6 +52,7 @@ flowchart TD
 |---|---|
 | **Gmail** | Buzón de entrada de los envíos (IMAP) y salida de los correos internos: acuses, recordatorios (SMTP). |
 | **Scripts Python** (`scripts/`) | Toda la lógica. Sin servidor ni base de datos: el estado son archivos en `data/`. |
+| **GitHub Actions** (`.github/workflows/`) | Ejecuta los scripts cada día y guarda `data/` y `logs/` con un commit en el repositorio privado. Las claves van en sus *Secrets*. |
 | **Modelo de IA** | Solo redacta. No tiene herramientas: no puede navegar, leer archivos ni enviar nada. Su respuesta está limitada a un esquema JSON fijo. |
 | **Plantilla HTML** | Único sitio donde vive el diseño (colores, logos, cabecera, pie). El modelo no escribe HTML. |
 | **Brevo** | Lista de suscriptores, envío masivo, bajas y estadísticas. El envío final lo decide una persona. |
@@ -60,7 +61,10 @@ flowchart TD
 
 ```
 config.yaml              Datos de la parroquia, grupos, IA y Brevo
-.env                     Claves (no se sube a git; ver .env.example)
+.env                     Claves para usarlo en local (no se sube a git; ver .env.example)
+.github/workflows/
+  diario.yml             Cada día: run_daily.py y guardar el estado
+  corregir.yml           A mano: redactar de nuevo con indicaciones y actualizar Brevo
 prompts/
   compose.md             Instrucciones para el modelo (qué escribir y en qué formato)
   style.md               Tono y lenguaje
@@ -75,17 +79,15 @@ scripts/
   log_tokens.py          Registro de tokens y coste
   publish_brevo.py       Borrador en Brevo + correo de prueba
   run_monthly.py         Proceso del día 25: recoger → estado → redactar → Brevo
-  run_daily.py           Lo que lanza el Programador de tareas: decide qué toca hoy
-  install.py             Instalación guiada (la lanza instalar.bat)
-  install_windows_task.ps1   Crea la tarea programada en Windows
+  run_daily.py           Lo que se ejecuta cada día: decide qué toca hoy
   newsletter-cli.py      Menú interactivo: estado, grupos, ejecutar pasos
-data/                    (no se sube a git)
+data/                    Estado. Ignorado aquí; en la copia privada lo guarda GitHub Actions
   submissions/AAAA-MM/   Envíos de cada grupo y sus adjuntos
   submissions/processed.json   Correos ya procesados
   drafts/                Borrador HTML y el id de la campaña en Brevo
   token_log.jsonl        Tokens y coste de cada redacción
   run_daily.json         Mes en que se envió el último recordatorio
-logs/                    Registro de cada ejecución mensual
+logs/                    Registro de cada ejecución, un archivo por mes (igual que data/)
 docs/                    Guía en PDF para los secretarios y el script que la genera
 ```
 
@@ -99,51 +101,52 @@ Los correos que llegan son texto de fuera y podrían traer instrucciones dirigid
 - solo se recogen correos de las direcciones registradas en `config.yaml`;
 - y nada sale a los lectores sin que el administrador lo revise y lo envíe desde Brevo.
 
+Los datos (correos, direcciones, adjuntos) solo se guardan en el repositorio privado de producción. Los workflows comprueban que el repositorio es privado antes de hacer nada y, si no lo es, se paran con un error.
+
 ---
 
-## Instalación
+## Puesta en producción
 
-Requisitos: Python 3.11 o posterior. En producción funciona en **Windows**; también en Linux o macOS.
+Se hace una vez. Hace falta una cuenta de GitHub (la de la parroquia, mejor que una personal), el buzón de Gmail del boletín, una cuenta de Brevo y una clave de Anthropic u OpenAI.
 
-### Instalación guiada
+### 1. Crear la copia privada
 
-En Windows, doble clic en **`instalar.bat`** (en Linux o macOS: `python3 scripts/install.py`). Si no hay Python, lo instala con `winget` y pide volver a abrirlo. Después pregunta, por orden:
+No vale un *fork*: GitHub no deja que el fork de un repositorio público sea privado.
 
-1. **Gmail**: la dirección del buzón y su [contraseña de aplicación](https://myaccount.google.com/apppasswords); el correo del administrador.
-2. **IA**: Claude u OpenAI, el modelo y la clave de la API.
-3. **Brevo**: la clave de la API; con ella lee las listas de contactos y los remitentes verificados para elegirlos de una lista.
-4. **Calendario**: días de recogida, recordatorio y borrador; a qué hora se ejecuta, si se repite cada pocas horas y si también al encender el ordenador.
+1. En GitHub, *New repository*: un nombre (por ejemplo `boletin-parroquia`), **Private**, y **sin** README ni nada más (vacío).
+2. En un ordenador con `git`:
+   ```bash
+   git clone https://github.com/aghast10/parish-newsletter.git boletin-parroquia
+   cd boletin-parroquia
+   git remote rename origin publico
+   git remote add origin https://github.com/USUARIO/boletin-parroquia.git
+   git push -u origin main
+   ```
 
-Comprueba cada clave al momento (si Gmail, Brevo o la IA la rechazan, deja volver a escribirla), guarda las claves en `.env` y lo demás en `config.yaml`, crea el entorno `.venv` con las dependencias, crea la [tarea programada](#programarlo-en-windows) y, si se quiere, genera la guía en PDF para los secretarios con la dirección del buzón. Se puede volver a ejecutar para cambiar algo: Intro deja cada valor como está.
+Así la copia privada conserva la historia del código y más adelante puede [traer las novedades](#traer-novedades-del-repositorio-público) de este.
 
-Lo único que no pregunta son los grupos y las direcciones de sus secretarios: se ponen en `config.yaml` o con `scripts\newsletter-cli.py` (ver [Grupos y secciones](#grupos-y-secciones)).
+Todo lo que sigue se hace en la **copia privada**.
 
-### Instalación a mano
+### 2. Gmail
 
-En Windows, con Python instalado desde [python.org](https://www.python.org/downloads/windows/), desde la carpeta del proyecto en PowerShell:
+El buzón del boletín necesita la verificación en dos pasos y una [contraseña de aplicación](https://myaccount.google.com/apppasswords). Como cada ejecución sale de una máquina de GitHub distinta, Google puede mandar algún aviso de «nuevo inicio de sesión»: es normal.
 
-```powershell
-py -m venv .venv
-.venv\Scripts\pip install -r requirements.txt
-copy .env.example .env      # y rellenar las claves
-```
+### 3. Brevo
 
-En Linux o macOS: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt` y `cp .env.example .env`. En los comandos de este documento, cambia `.venv\Scripts\python` por `.venv/bin/python`.
+1. **Remitente verificado.** En *Remitentes y dominios*, verifica la dirección que pondrás en `brevo.sender_email`. Lo ideal es usar el dominio de la parroquia (`perpetuosocorro.com`) y autenticarlo (SPF/DKIM). Desde una dirección `@gmail.com` el correo llega peor.
+2. **Lista de suscriptores.** En *Contactos* → *Listas*, crea la lista del boletín, importa los contactos (que hayan dado su consentimiento) y apunta su id en `brevo.list_id`.
+3. **Contacto de prueba.** Añade `ADMIN_EMAIL` como contacto de prueba. Si no, Brevo puede rechazar el envío de la prueba.
+4. **Clave de la API.** *SMTP y API* → *Claves API* → crear una.
+5. **IPs autorizadas.** Brevo puede bloquear la clave cuando se usa desde una IP desconocida, y las máquinas de GitHub cambian de IP en cada ejecución. Si la primera prueba falla con un error de Brevo que habla de la IP, desactiva el bloqueo de IPs en la configuración de seguridad de Brevo.
+6. **Plan.** El plan gratuito permite 300 correos al día y añade la marca de Brevo en el pie.
 
-### `.env`
+### 4. `config.yaml`
 
-| Variable | Para qué |
-|---|---|
-| `GMAIL_ADDRESS`, `GMAIL_APP_PASSWORD` | Buzón del boletín. Hace falta una [contraseña de aplicación](https://myaccount.google.com/apppasswords) de Google con la verificación en dos pasos activada. |
-| `ADMIN_EMAIL` | Quien recibe la prueba de cada mes. |
-| `ANTHROPIC_API_KEY` u `OPENAI_API_KEY` | La del proveedor elegido en `config.yaml`. |
-| `BREVO_API_KEY` | Brevo → *SMTP y API* → *Claves API*. |
-
-### `config.yaml`
+Se puede editar en la web de GitHub (el lápiz al abrir el archivo):
 
 - `parish`: datos de la parroquia.
-- `schedule`: días de recogida, recordatorio y publicación, y la hora y frecuencia de la tarea programada (si se cambian a mano, hay que volver a crear la tarea).
-- `groups`: un elemento por sección del boletín (ver abajo).
+- `schedule`: días de recogida, recordatorio y publicación.
+- `groups`: un elemento por sección del boletín, con la dirección real de cada secretario (ver [Grupos y secciones](#grupos-y-secciones)).
 - `llm`: proveedor y modelo de IA.
   ```yaml
   llm:
@@ -154,41 +157,70 @@ En Linux o macOS: `python3 -m venv .venv`, `.venv/bin/pip install -r requirement
   ```
 - `brevo`: id de la lista de contactos y remitente.
 
-### Preparar Brevo
+### 5. Claves y activación
 
-1. **Remitente verificado.** En *Remitentes y dominios*, verifica la dirección que pondrás en `brevo.sender_email`. Lo ideal es usar el dominio de la parroquia (`perpetuosocorro.com`) y autenticarlo (SPF/DKIM). Desde una dirección `@gmail.com` el correo llega peor.
-2. **Lista de suscriptores.** En *Contactos* → *Listas*, crea la lista del boletín, importa los contactos (que hayan dado su consentimiento) y apunta su id en `brevo.list_id`.
-3. **Contacto de prueba.** Añade `ADMIN_EMAIL` como contacto de prueba. Si no, Brevo puede rechazar el envío de la prueba.
-4. **Plan.** El plan gratuito permite 300 correos al día y añade la marca de Brevo en el pie.
+En la copia privada, *Settings* → *Secrets and variables* → *Actions*:
+
+En la pestaña **Secrets**, *New repository secret* para cada una:
+
+| Secret | Qué es |
+|---|---|
+| `GMAIL_ADDRESS` | Dirección del buzón del boletín. |
+| `GMAIL_APP_PASSWORD` | Su contraseña de aplicación. |
+| `ADMIN_EMAIL` | Quien recibe la prueba de cada mes. |
+| `ANTHROPIC_API_KEY` u `OPENAI_API_KEY` | La del proveedor elegido en `config.yaml`. |
+| `BREVO_API_KEY` | La clave de la API de Brevo. |
+
+En la pestaña **Variables**, *New repository variable*: `BOLETIN_PRODUCCION` con el valor `true`. Sin ella los workflows no hacen nada; así no se ponen en marcha por accidente en cualquier copia.
+
+### 6. Primera prueba
+
+*Actions* → **Diario** → *Run workflow*. En un minuto o dos se ve el resultado de cada paso, y si ha cambiado algo aparece un commit «Estado: …». Hace lo que toque según el día: entre el 10 y el 24 recoge los correos de verdad y manda los acuses; antes del 10 solo dice que no hay nada que hacer. Desde ese momento se ejecuta solo cada día.
+
+### Traer novedades del repositorio público
+
+Cuando el código de este repositorio cambie, desde la carpeta de la copia privada:
+
+```bash
+git pull                # lo que ha guardado GitHub Actions
+git pull publico main   # las novedades del código
+git push
+```
 
 ---
 
 ## Uso mensual
 
-| Cuándo | Qué | Comando |
+El workflow **Diario** ejecuta `scripts/run_daily.py` dos veces al día (hacia las 8:15 y las 16:15, hora de Madrid; GitHub a veces lo retrasa unos minutos). Cada vez mira la fecha (`schedule` en `config.yaml`) y lo que ya está hecho este mes:
+
+| Día del mes | Qué hace |
+|---|---|
+| Antes del 10 | Nada. |
+| Del 10 al 24 | Recoge los correos. |
+| Del 20 al 24 | Además, manda el recordatorio a los grupos que faltan, una sola vez al mes. |
+| Del 25 a fin de mes | Proceso mensual (`run_monthly.py`): recoger, redactar, borrador en Brevo y prueba al administrador. Una sola vez: cuando la campaña del mes ya existe en Brevo, no hace nada más. Si falla, lo reintenta en la siguiente ejecución. |
+
+Ejecutarlo varias veces no repite nada, y si una ejecución se pierde la siguiente hace lo pendiente. Después de cada ejecución guarda `data/` y `logs/` con un commit («Estado: …»), también cuando algo ha fallado, para no recoger dos veces lo mismo.
+
+Al administrador le queda:
+
+| Cuándo | Qué | Dónde |
 |---|---|---|
-| Días 10–25 | Recoger envíos | `.venv\Scripts\python scripts\collect_emails.py` |
-| Día 20 | Recordar a los que faltan | `.venv\Scripts\python scripts\send_reminder.py` |
-| Cuando sea | Ver quién ha enviado | `.venv\Scripts\python scripts\status.py` |
-| Día 25 | Recoger, redactar y subir el borrador a Brevo | `.venv\Scripts\python scripts\run_monthly.py` |
-| Tras revisar | Corregir y volver a subir | `compose.py --notes "…"` y `publish_brevo.py` |
+| Cuando quiera | Ver quién ha enviado y qué | En la copia privada, `data/submissions/AAAA-MM/` (un archivo por grupo y los adjuntos) |
+| Día 25 | Revisar el correo de prueba | Su correo |
+| Si hay que cambiar algo | Corregir | *Actions* → **Corregir boletín** → *Run workflow* con las indicaciones (y el mes, si no es el actual) |
 | Al aprobar | Enviar | Desde Brevo |
+| Si algo falla | Ver qué ha pasado | *Actions* → la ejecución en rojo, o `logs/AAAA-MM.log` |
 
-Con la [tarea programada](#programarlo-en-windows) los cuatro primeros pasos van solos; quedan la revisión y el envío.
+Para no tener que entrar a mirar: GitHub avisa por correo de las ejecuciones que fallan (*Settings* de la cuenta → *Notifications* → *Actions*). Y si el día 25 no llega la prueba, algo ha fallado.
 
-Opciones útiles:
-
-- `collect_emails.py --dry-run` muestra lo que recogería sin guardar ni enviar nada; `--no-receipt` no manda acuses.
-- `compose.py --month 2026-03` y `publish_brevo.py --month 2026-03` trabajan con otro mes. `publish_brevo.py --dry-run` enseña la petición sin llamar a Brevo.
-- `scripts/newsletter-cli.py` es un menú con todo lo anterior.
-
-El borrador se puede abrir en el navegador antes de subirlo: `data/drafts/AAAA-MM-draft.html`.
+*Actions* → **Diario** → *Run workflow* lo ejecuta en el momento, por ejemplo para recoger un correo recién llegado.
 
 ---
 
 ## Grupos y secciones
 
-Las secciones del boletín salen de la lista `groups` de `config.yaml`, no de la plantilla. Para añadir una sección, añade el grupo (a mano o con la CLI, *Groups → add*):
+Las secciones del boletín salen de la lista `groups` de `config.yaml`, no de la plantilla. Para añadir una sección, añade el grupo en `config.yaml` de la copia privada (desde la web de GitHub, o en local a mano o con la CLI, *Groups → add*):
 
 ```yaml
 groups:
@@ -205,45 +237,37 @@ El diseño se cambia solo en `prompts/template.html`. El tono, en `prompts/style
 
 ---
 
-## Programarlo en Windows
+## Desarrollo en local
 
-El ordenador de la parroquia se apaga cada día, así que no se puede contar con que esté encendido a una hora y un día concretos. Por eso hay una sola tarea, `scripts/run_daily.py`, que se lanza **al iniciar sesión** (cinco minutos después, para que haya red) y **cada día a las 10:00** si el equipo sigue encendido. Cada vez mira la fecha (`schedule` en `config.yaml`) y lo que ya está hecho este mes:
+Para probar cambios en el código, en Linux o macOS con Python 3.11 o posterior:
 
-| Día del mes | Qué hace |
-|---|---|
-| Antes del 10 | Nada. |
-| Del 10 al 24 | Recoge los correos. |
-| Del 20 al 24 | Además, manda el recordatorio a los grupos que faltan, una sola vez al mes. |
-| Del 25 a fin de mes | Proceso mensual (`run_monthly.py`): recoger, redactar, borrador en Brevo y prueba al administrador. Una sola vez: cuando la campaña del mes ya existe en Brevo, no hace nada más. Si falla, lo reintenta la próxima vez que se encienda. |
-
-Así, aunque el ordenador no se encienda el día 20 o el 25, lo hace el primer día que se encienda después. Se puede lanzar varias veces al día sin problema: lo ya recogido no se repite. Lo único que no recupera es un mes en que el ordenador no se encienda ningún día entre el 25 y el final: entonces hay que hacerlo a mano con `compose.py --month AAAA-MM` y `publish_brevo.py --month AAAA-MM`.
-
-La tarea la crea la instalación guiada, con la hora y la frecuencia que se le digan. Para crearla a mano, una vez instalado el entorno (`.venv`), desde la carpeta del proyecto en PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_windows_task.ps1 -At 10:00 [-EveryHours 4] [-NoLogon]
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+cp .env.example .env      # y rellenar las claves
 ```
 
-Aparece en el *Programador de tareas* como **Boletin parroquial**; desde ahí se puede ejecutar a mano para probarla. Corre con el usuario que la crea y solo mientras esa sesión está iniciada, sin abrir ninguna ventana. Lo que hace queda en `logs\AAAA-MM.log`. Para quitarla: `Unregister-ScheduledTask -TaskName "Boletin parroquial"`.
+> [!WARNING]
+> El estado de producción vive en la copia privada, no en tu carpeta. Si ejecutas en local contra el buzón real, `collect_emails.py` volverá a recoger los correos y a mandar acuses a los secretarios. Usa `--dry-run`, o un buzón de pruebas.
 
-En Linux o macOS con un equipo siempre encendido basta una línea de cron:
+- `.venv/bin/python scripts/status.py` muestra qué grupos han enviado.
+- `collect_emails.py --dry-run` muestra lo que recogería sin guardar ni enviar nada; `--no-receipt` no manda acuses.
+- `compose.py --month 2026-03` y `publish_brevo.py --month 2026-03` trabajan con otro mes. `publish_brevo.py --dry-run` enseña la petición sin llamar a Brevo.
+- `run_monthly.py` hace el proceso del día 25 y `run_daily.py` lo que toque según la fecha.
+- `scripts/newsletter-cli.py` es un menú con todo lo anterior.
 
-```cron
-0 10 * * *  cd /ruta/parish-newsletter && .venv/bin/python scripts/run_daily.py
-```
-
-El envío final no se programa: lo hace el administrador desde Brevo.
+El borrador se puede abrir en el navegador: `data/drafts/AAAA-MM-draft.html`.
 
 ---
 
 ## Coste
 
-Cada redacción es una llamada a la API. Con nueve grupos cuesta unos céntimos al mes con Claude Opus 5.5, y menos con Sonnet. Los tokens y el coste de cada redacción quedan en `data/token_log.jsonl`. El plan gratuito de Brevo cubre una lista parroquial normal.
+Cada redacción es una llamada a la API. Con nueve grupos cuesta unos céntimos al mes con Claude Opus 5.5, y menos con Sonnet. Los tokens y el coste de cada redacción quedan en `data/token_log.jsonl`. El plan gratuito de Brevo cubre una lista parroquial normal. GitHub Actions es gratis para este uso: el plan gratuito incluye 2.000 minutos al mes en repositorios privados y esto gasta entre 60 y 120.
 
 ## Guía para secretarios
 
 [`docs/plantilla-secretarios.pdf`](docs/plantilla-secretarios.pdf) explica cómo y cuándo enviar, e incluye una plantilla para copiar en el correo y un ejemplo rellenado. Se genera con `docs/make_plantilla.py`; para poner en el PDF la dirección del buzón:
 
 ```bash
-python3 docs/make_plantilla.py --to boletin@example.com     # en Windows: py docs\make_plantilla.py
+python3 docs/make_plantilla.py --to boletin@example.com
 ```

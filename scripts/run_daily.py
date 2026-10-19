@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Daily entry point for the scheduler: does whatever the newsletter needs today.
 
-Made for a computer that is not always on (Windows Task Scheduler runs it at
-logon and every day at 10:00). Each run looks at the date (`schedule` in
-config.yaml) and at what is already done this month:
+The GitHub Actions workflow (.github/workflows/diario.yml) runs it twice a
+day. Each run looks at the date (`schedule` in config.yaml) and at what is
+already done this month:
 
 - from collection_start_day to the day before publish_day: collect emails;
 - from reminder_day to the day before publish_day: send the reminder, once a
@@ -12,9 +12,8 @@ config.yaml) and at what is already done this month:
   (run_monthly.py), until the month's Brevo campaign exists
   (data/drafts/YYYY-MM-brevo.json). A failed run is retried on the next one.
 
-Running it several times a day is safe. Days the computer was off are caught
-up within the month; if it is off from publish_day to the end of the month,
-the newsletter has to be composed by hand.
+Running it several times a day is safe, and a missed run is caught up by the
+next one within the month.
 """
 
 import json
@@ -23,7 +22,7 @@ import traceback
 from datetime import datetime
 
 from common import DRAFTS_DIR, PROJECT_DIR, load_config, today
-from run_monthly import echo, run_pipeline, run_step, setup_console
+from run_monthly import echo, run_pipeline, run_step
 
 STATE_FILE = PROJECT_DIR / "data" / "run_daily.json"
 
@@ -73,7 +72,6 @@ def main():
 
 
 if __name__ == "__main__":
-    setup_console()
     try:
         ok = main()
     except Exception:
