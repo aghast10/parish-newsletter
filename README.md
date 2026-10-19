@@ -35,9 +35,9 @@ flowchart TD
 4. **Redacción** (`compose.py`, día 25). Junta los envíos del mes y hace **una sola llamada** al modelo de IA (Anthropic u OpenAI), que devuelve el texto en JSON: saludo, una sección por grupo y cierre. El script escapa ese texto, aplica el formato básico (párrafos, negritas, listas, enlaces) y lo mete en `prompts/template.html`. El resultado es `data/drafts/AAAA-MM-draft.html`.
 5. **Borrador en Brevo** (`publish_brevo.py`). Crea la campaña del mes como borrador en Brevo, o la actualiza si ya existe, y manda un correo de prueba al administrador.
 6. **Revisión.** El administrador lee la prueba tal como la verá el lector. Si hay que cambiar algo:
-   ```bash
-   .venv/bin/python scripts/compose.py --notes "Quita la fecha del retiro, aún no está confirmada"
-   .venv/bin/python scripts/publish_brevo.py
+   ```
+   .venv\Scripts\python scripts\compose.py --notes "Quita la fecha del retiro, aún no está confirmada"
+   .venv\Scripts\python scripts\publish_brevo.py
    ```
    Se vuelve a redactar con esas indicaciones, se actualiza la misma campaña y llega otra prueba. Los retoques pequeños también se pueden hacer directamente en el editor de Brevo.
 7. **Envío.** En Brevo → *Campañas* → el borrador del mes → *Enviar*. Brevo lo manda a la lista de suscriptores y gestiona las bajas: el pie del boletín lleva el enlace *Darse de baja*.
@@ -74,13 +74,16 @@ scripts/
   llm.py                 Llamada a la API de Anthropic u OpenAI
   log_tokens.py          Registro de tokens y coste
   publish_brevo.py       Borrador en Brevo + correo de prueba
-  run_monthly.sh         Proceso del día 25: recoger → estado → redactar → Brevo
+  run_monthly.py         Proceso del día 25: recoger → estado → redactar → Brevo
+  run_daily.py           Lo que lanza el Programador de tareas: decide qué toca hoy
+  install_windows_task.ps1   Crea la tarea programada en Windows
   newsletter-cli.py      Menú interactivo: estado, grupos, ejecutar pasos
 data/                    (no se sube a git)
   submissions/AAAA-MM/   Envíos de cada grupo y sus adjuntos
   submissions/processed.json   Correos ya procesados
   drafts/                Borrador HTML y el id de la campaña en Brevo
   token_log.jsonl        Tokens y coste de cada redacción
+  run_daily.json         Mes en que se envió el último recordatorio
 logs/                    Registro de cada ejecución mensual
 docs/                    Guía en PDF para los secretarios y el script que la genera
 ```
@@ -99,13 +102,17 @@ Los correos que llegan son texto de fuera y podrían traer instrucciones dirigid
 
 ## Instalación
 
-Requisitos: Python 3.11 o posterior.
+Requisitos: Python 3.11 o posterior. En producción funciona en **Windows**; también en Linux o macOS.
 
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-cp .env.example .env      # y rellenar las claves
+En Windows, con Python instalado desde [python.org](https://www.python.org/downloads/windows/), desde la carpeta del proyecto en PowerShell:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+copy .env.example .env      # y rellenar las claves
 ```
+
+En Linux o macOS: `python3 -m venv .venv`, `.venv/bin/pip install -r requirements.txt` y `cp .env.example .env`. En los comandos de este documento, cambia `.venv\Scripts\python` por `.venv/bin/python`.
 
 ### `.env`
 
@@ -144,12 +151,14 @@ cp .env.example .env      # y rellenar las claves
 
 | Cuándo | Qué | Comando |
 |---|---|---|
-| Días 10–25 | Recoger envíos | `.venv/bin/python scripts/collect_emails.py` |
-| Día 20 | Recordar a los que faltan | `.venv/bin/python scripts/send_reminder.py` |
-| Cuando sea | Ver quién ha enviado | `.venv/bin/python scripts/status.py` |
-| Día 25 | Recoger, redactar y subir el borrador a Brevo | `scripts/run_monthly.sh` |
+| Días 10–25 | Recoger envíos | `.venv\Scripts\python scripts\collect_emails.py` |
+| Día 20 | Recordar a los que faltan | `.venv\Scripts\python scripts\send_reminder.py` |
+| Cuando sea | Ver quién ha enviado | `.venv\Scripts\python scripts\status.py` |
+| Día 25 | Recoger, redactar y subir el borrador a Brevo | `.venv\Scripts\python scripts\run_monthly.py` |
 | Tras revisar | Corregir y volver a subir | `compose.py --notes "…"` y `publish_brevo.py` |
 | Al aprobar | Enviar | Desde Brevo |
+
+Con la [tarea programada](#programarlo-en-windows) los cuatro primeros pasos van solos; quedan la revisión y el envío.
 
 Opciones útiles:
 
@@ -180,17 +189,31 @@ El diseño se cambia solo en `prompts/template.html`. El tono, en `prompts/style
 
 ---
 
-## Programarlo con cron
+## Programarlo en Windows
 
-Hoy no está programado en ninguna máquina. Cuando se ponga en producción, algo así (cambiando la ruta):
+El ordenador de la parroquia se apaga cada día, así que no se puede contar con que esté encendido a una hora y un día concretos. Por eso hay una sola tarea, `scripts/run_daily.py`, que se lanza **al iniciar sesión** (cinco minutos después, para que haya red) y **cada día a las 10:00** si el equipo sigue encendido. Cada vez mira la fecha (`schedule` en `config.yaml`) y lo que ya está hecho este mes:
+
+| Día del mes | Qué hace |
+|---|---|
+| Antes del 10 | Nada. |
+| Del 10 al 24 | Recoge los correos. |
+| Del 20 al 24 | Además, manda el recordatorio a los grupos que faltan, una sola vez al mes. |
+| Del 25 a fin de mes | Proceso mensual (`run_monthly.py`): recoger, redactar, borrador en Brevo y prueba al administrador. Una sola vez: cuando la campaña del mes ya existe en Brevo, no hace nada más. Si falla, lo reintenta la próxima vez que se encienda. |
+
+Así, aunque el ordenador no se encienda el día 20 o el 25, lo hace el primer día que se encienda después. Se puede lanzar varias veces al día sin problema: lo ya recogido no se repite. Lo único que no recupera es un mes en que el ordenador no se encienda ningún día entre el 25 y el final: entonces hay que hacerlo a mano con `compose.py --month AAAA-MM` y `publish_brevo.py --month AAAA-MM`.
+
+Para crear la tarea, una vez instalado el entorno (`.venv`), desde la carpeta del proyecto en PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows_task.ps1
+```
+
+Aparece en el *Programador de tareas* como **Boletin parroquial**; desde ahí se puede ejecutar a mano para probarla. Corre con el usuario que la crea y solo mientras esa sesión está iniciada, sin abrir ninguna ventana. Lo que hace queda en `logs\AAAA-MM.log`. Para quitarla: `Unregister-ScheduledTask -TaskName "Boletin parroquial"`.
+
+En Linux o macOS con un equipo siempre encendido basta una línea de cron:
 
 ```cron
-# Recoger envíos, días 10 a 25 a las 08:00
-0 8 10-25 * *  cd /ruta/parish-newsletter && .venv/bin/python scripts/collect_emails.py >> logs/cron.log 2>&1
-# Recordatorio, día 20 a las 09:00
-0 9 20 * *     cd /ruta/parish-newsletter && .venv/bin/python scripts/send_reminder.py >> logs/cron.log 2>&1
-# Redactar y subir el borrador a Brevo, día 25 a las 10:00
-0 10 25 * *    cd /ruta/parish-newsletter && scripts/run_monthly.sh
+0 10 * * *  cd /ruta/parish-newsletter && .venv/bin/python scripts/run_daily.py
 ```
 
 El envío final no se programa: lo hace el administrador desde Brevo.
@@ -206,5 +229,5 @@ Cada redacción es una llamada a la API. Con nueve grupos cuesta unos céntimos 
 [`docs/plantilla-secretarios.pdf`](docs/plantilla-secretarios.pdf) explica cómo y cuándo enviar, e incluye una plantilla para copiar en el correo y un ejemplo rellenado. Se genera con `docs/make_plantilla.py`; para poner en el PDF la dirección del buzón:
 
 ```bash
-python3 docs/make_plantilla.py --to boletin@example.com
+python3 docs/make_plantilla.py --to boletin@example.com     # en Windows: py docs\make_plantilla.py
 ```
